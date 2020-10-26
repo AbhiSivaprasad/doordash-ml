@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import pandas as pd
 
 from logging import Logger
@@ -7,26 +8,20 @@ from typing import Callable
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
+from ./utils import DefaultLogger
 
-def train(args: TrainArgs, 
-          train_data: pd.DataFrame, 
-          valid_data: pd.DataFrame, 
-          test_data: pd.DataFrame, 
-          logger: Logger):
-    """
-    :param train_data: Pandas DataFrame holding training data. Has a column 
-                       'name' with item's name and 'target' with int target class
-    :param test_data: Pandas DataFrame holding testing data. Has a column 
-                      'name' with item's name and 'target' with int target class
-    """
-    # get model
-    num_classes = len(set(data.target))
-    model = DistilBertClassificationModel(num_classes)
 
-    # pytorch data loaders
-    train_dataloader = Dataloader(train_data, shuffle=True, batch_size=args.train_batch_size)
-    valid_dataloader = Dataloader(valid_data, shuffle=True, batch_size=args.valid_batch_size)
-    test_dataloader = Dataloader(test_data, shuffle=True, batch_size=args.test_batch_size)
+def train(model: nn.Module
+          train_dataloader: DataLoader, 
+          valid_dataloader: DataLoader, 
+          test_dataloader: DataLoader, 
+          args: TrainArgs, 
+          logger: Logger = None):
+    """
+    Train model for args.epochs, validate after each epoch, and test best model
+    """
+    if logger is None:
+        logger = DefaultLogger()
 
     # simple loss function, optimizer
     loss_fn = torch.nn.CrossEntropyLoss()
@@ -65,10 +60,13 @@ def train_epoch(model: torch.nn.Module,
                 data_loader: DataLoader, 
                 optimizer: Optimizer,
                 loss_fn: Callable,
-                logger: Logger = None):
-    # use custom logger for training
-    debug = logger.debug if logger is not None else print
+                logger: Logger):
+    """
+    Train model for a single epoch
 
+    :param data_loader: Torch DataLoader with training batches
+    """
+    # use custom logger for training
     model.train()
     iter_count, total_loss, total_correct, total_steps = 0
     for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader):

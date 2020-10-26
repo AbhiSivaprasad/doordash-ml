@@ -9,3 +9,7 @@ def set_seed(seed: int):
     torch.manual_seed(seed) 
     if torch.cuda.device_count() > 0: 
         torch.cuda.manual_seed_all(seed)
+
+
+class DefaultLogger():
+    debug = info = print

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import DistilBertModel
 
-# Simple dropout + dense layer on top of DistillBERT
+# Simple dropout + dense layer on top of DistilBERT
 class DistilBertClassificationModel(torch.nn.Module):
     def __init__(self, output_size):
         super(DistillBERTClass, self).__init__()
