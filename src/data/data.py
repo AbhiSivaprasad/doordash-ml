@@ -1,41 +1,37 @@
 import pandas as pd
-import torch
-from torch.utils.data import Dataset
+import numpy as np
 
 
-def generate_datasets(data: pd.DataFrame):
-    # for now hardcode l2
-    datasets = [dataset for dataset in data.groupby('l1')]
+def generate_datasets(train_data: pd.DataFrame, 
+                      valid_data: pd.DataFrame, 
+                      test_data: pd.DataFrame,
+                      l1_categories: List[str]):
+    """
+    Given a dataset, generate subsets for each category
+    """
+    datasets = [train_data, valid_data, test_data]
+
+    # for now hardcode l1, l2 
+    l1_datasets = [("All", dataset.copy()) for dataset in datasets]
+    l2_datasets = [
+        (category, [dataset[dataset['l1'] == category].copy() for dataset in datasets])
+        for category in l1_categories
+    ]
 
     # list of tuples (L1 name, dataset)
-    return datasets
+    return l1_datasets + l2_datasets
 
 
-class BertDataset(Dataset):
-    def __init__(self, dataframe, tokenizer, max_len):
-        self.len = len(dataframe)
-        self.data = dataframe
-        self.tokenizer = tokenizer
-        self.max_len = max_len
-        
-    def __getitem__(self, index):
-        # TODO: batch tokenize 
-        inputs = self.tokenizer(
-            str(self.data.name[index]),
-            add_special_tokens=True,
-            max_length=self.max_len,
-            padding='max_length',
-            truncation=True # TODO: measure performance of truncated samples
-        )
-        
-        ids = inputs['input_ids']
-        mask = inputs['attention_mask']
+def split_data(data: pd.DataFrame, train_size: float, val_size: float, test_size: float):
+    """
+    Given a dataset, split randomly into train, val, test
 
-        return {
-            'ids': torch.tensor(ids, dtype=torch.long),
-            'mask': torch.tensor(mask, dtype=torch.long),
-            'targets': torch.tensor(self.data.target[index], dtype=torch.long)
-        } 
-    
-    def __len__(self):
-        return self.len
+    :param data: Pandas Dataframe containing dataset to be split
+    """
+    data_size = len(data)
+
+    # split along two breakpoints
+    return np.split(data.sample(frac=1), [
+        int(train_size * data_size), 
+        int((train_size + val_size) * data_size]
+    )
