@@ -11,6 +11,8 @@ from torch.utils.data import DataLoader
 from .utils import DefaultLogger
 from .evaluate import evaluate_predictions
 
+from ..constants import MODEL_FILE_NAME
+
 
 def train(model: nn.Module
           train_dataloader: DataLoader, 

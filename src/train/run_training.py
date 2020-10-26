@@ -5,13 +5,9 @@ from transformers import DistilBertTokenizer
 from .utils import set_seed
 from ../data/data import split_data, generate_datasets
 
+from ..constants import MODEL_FILE_NAME
 
 def run_training(args: TrainArgs):
-    # index by model name and timestamp
-    args.save_dir = os.path.join(args.save_dir, 
-                                 args.model_name, 
-                                 datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-
     # save args
     os.makedirs(path)
     args.save(os.path.join(args.save_dir, "args.json"))
@@ -21,7 +17,7 @@ def run_training(args: TrainArgs):
     num_classes = len(set(data.target))
 
     # create data splits before splitting by category
-    train_data, valid_data, test_data = split_data(data, args.seed)
+    train_data, valid_data, test_data = split_data(data, args.train_size, args.valid_size, args.test_size, args.seed)
 
     # load model specific tools
     if args.model == 'distilbert'
@@ -48,8 +44,8 @@ def run_training(args: TrainArgs):
 
         # pytorch data loaders
         train_dataloader = Dataloader(train_data, shuffle=True, batch_size=args.train_batch_size)
-        valid_dataloader = Dataloader(valid_data, shuffle=True, batch_size=args.valid_batch_size)
-        test_dataloader = Dataloader(test_data, shuffle=True, batch_size=args.test_batch_size)
+        valid_dataloader = Dataloader(valid_data, shuffle=True, batch_size=args.predict_batch_size)
+        test_dataloader = Dataloader(test_data, shuffle=True, batch_size=args.predict_batch_size)
 
         # run training
         save_dir = os.path.join(args.save_dir, name)
