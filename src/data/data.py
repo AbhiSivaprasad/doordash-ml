@@ -25,8 +25,9 @@ def generate_datasets(train_data: pd.DataFrame,
         dataset["target"] = dataset["l1_target"]
 
     # for each l2 dataset the target is now "l2_target"
-    for datasets in l2_datasets for dataset in datasets:
-        dataset["target"] = dataset["l2_target"]
+    for datasets in l2_datasets:
+        for dataset in datasets:
+            dataset["target"] = dataset["l2_target"]
 
     # list of tuples (L1 name, dataset)
     return l1_datasets + l2_datasets
@@ -45,5 +46,5 @@ def split_data(data: pd.DataFrame, train_size: float, val_size: float, test_size
     data_size = len(data)
     return np.split(data.sample(frac=1), [
         int(train_size * data_size), 
-        int((train_size + val_size) * data_size]
-    )
+        int((train_size + val_size) * data_size)
+    ])

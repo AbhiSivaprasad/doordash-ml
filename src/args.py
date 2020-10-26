@@ -1,5 +1,4 @@
 from tap import Tap
-from typing import None
 
 
 class TrainArgs(Tap):
@@ -25,9 +24,9 @@ class TrainArgs(Tap):
     """Size of test split"""
 
     # Training args
-    args.epochs: int = 5
+    epochs: int = 5
     """Number of epochs to train model for"""
-    args.lr: float = 1e-5
+    lr: float = 1e-5
     """Learning rate for training"""
 
 

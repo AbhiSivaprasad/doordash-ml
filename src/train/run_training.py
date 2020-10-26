@@ -3,9 +3,9 @@ import pandas as pd
 
 from transformers import DistilBertTokenizer
 from .utils import set_seed
-from ../data/data import split_data, generate_datasets
-
-from ..constants import MODEL_FILE_NAME
+from ..data.data import split_data, generate_datasets
+from ..args import TrainArgs
+from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
 
 def run_training(args: TrainArgs):
     # save args
@@ -20,7 +20,7 @@ def run_training(args: TrainArgs):
     train_data, valid_data, test_data = split_data(data, args.train_size, args.valid_size, args.test_size, args.seed)
 
     # load model specific tools
-    if args.model == 'distilbert'
+    if args.model == 'distilbert':
         model = DistilBertClassificationModel(num_classes)
         tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased') 
     else:
@@ -59,7 +59,7 @@ def run_training(args: TrainArgs):
         debug(f"Test Accuracy: {test_acc}")
 
     # Record results
-    with open(os.path.join(save_dir, 'results.csv'), 'w+') as f:
+    with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:
         writer = csv.writer(f)
         headers, values = zip(*results)
 
