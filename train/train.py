@@ -6,9 +6,8 @@ import torch
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from ../models/DistilBertClassificationModel import DistilBertClassificationModel
 
-def train(model: DistilBertClassificationModel, 
+def train(model: torch.nn.Module, 
           data_loader: DataLoader, 
           optimizer: Optimizer
           logging: logging.Logger=None):
