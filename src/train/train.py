@@ -8,18 +8,22 @@ from typing import Callable
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from ./utils import DefaultLogger
+from .utils import DefaultLogger
+from .evaluate import evaluate_predictions
 
 
 def train(model: nn.Module
           train_dataloader: DataLoader, 
           valid_dataloader: DataLoader, 
-          test_dataloader: DataLoader, 
           args: TrainArgs, 
+          save_dir: str,
           logger: Logger = None):
     """
     Train model for args.epochs, validate after each epoch, and test best model
     """
+    # set seed for reproducibility
+    set_seed(args.seed)
+
     if logger is None:
         logger = DefaultLogger()
 
@@ -34,26 +38,18 @@ def train(model: nn.Module
         train_epoch(model, data_loader, optimizer, loss_fn, logger)
 
         # test on validation set after each epoch
-        preds = np.array(predict(model, valid_dataloader))
-        targets = np.array(valid_data["target"])
+        preds = predict(model, valid_dataloader)
+        acc = evaluate_predictions(preds, valid_data["target"], logger)
+        debug(f"Validation Accuracy: {val_acc}")
 
         # if model is better then save
-        val_acc = (preds == targets).sum() / len(targets) 
-        debug(f"Validation Accuracy: {val_acc}")
         if val_acc > best_acc:
             best_acc, best_epoch = val_acc, epoch
 
             torch.save({
                 "args": args,
                 "state_dict": model.state_dict(),
-            }, os.path.join(args.save_dir, MODEL_FILE_NAME))
-        
-    # Evaluate on test set using model with best validation score
-    model = load_checkpoint(os.path.join(save_dir, MODEL_FILE_NAME))
-    preds = np.array(predict(model, test_dataloader))
-    targets = np.array(test_data["target"])
-    test_acc = (preds == targets).sum() / len(targets) 
-    debug(f"Test Accuracy: {test_acc}")
+            }, os.path.join(save_dir, MODEL_FILE_NAME))
 
 
 def train_epoch(model: torch.nn.Module, 
