@@ -27,8 +27,11 @@ class TrainArgs(Tap):
     """Size of validation split"""
     test_size: float = 0.1
     """Size of test split"""
-    categories: List[str] = ["All"]
-    """List of category names to build classifiers for. 'All' signifes L1 classifier"""
+    separate_test_path: str = None
+    """Use separate path as test set, test_size will be added to train_size"""
+    categories: List[str] = ["L1"]
+    """List of category names to build classifiers for. 'L1' signifes L1 classifier. 
+    'L2' signifies all L2 classifiers."""
     cuda: bool = True
     """Boolean whether to use GPU when training"""
     gpu: int = 0
@@ -40,23 +43,6 @@ class TrainArgs(Tap):
     lr: float = 1e-5
     """Learning rate for training"""
 
-    # non-user args
-    _num_target_classes = None
-    """Number of target classes. Not passed by user, auto set during execution"""
-
-    @property
-    def num_target_classes(self) -> Optional[int]:
-        """
-        Number of target classes.
-
-        Computed during execution so will return None if accessed before value is set
-        """
-        return self._num_target_classes 
-
-    @num_target_classes.setter
-    def num_target_classes(self, num_classes):
-        self._num_target_classes = num_classes
-
     @property
     def device(self) -> torch.device:
         """The :code:`torch.device` on which to load and process data and models."""
@@ -64,16 +50,28 @@ class TrainArgs(Tap):
             return torch.device('cpu')
 
         return torch.device('cuda', self.gpu)
-
-    def process_args(self) -> None:
-        super(TrainArgs, self).process_args()
-
+    
+    # validators
+    def validate_split_sizes():
         # validate train/valid/test split sizes
         if not self.train_size + self.valid_size + self.test_size == 1:
             raise ValueError("train_size, valid_size, test_size must sum to 1")
+
+    def validate_categories():
+        # 'L2' signfies all L2 categories so if it exists 'L1' can be the only other passed in category
+        if 'L2' in self.categories:
+            required_len = 1 if 'L1' not in self.categories else 2
+            if not len(self.categories) == required_len:
+                raise ValueError("Invalid use of 'L2' in categories list")
+
+    def process_args(self) -> None:
+        super(TrainArgs, self).process_args()
 
         # index save_dir by model name and timestamp
         self.save_dir = os.path.join(self.save_dir, 
                                      self.model, 
                                      datetime.now().strftime("%Y%m%d-%H%M%S"))
-    
+        
+        # validate 
+        self.validate_split_sizes()
+        self.validate_categories()
