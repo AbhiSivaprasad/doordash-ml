@@ -1,4 +1,5 @@
 import os
+import torch
 
 from datetime import datetime
 from typing import List
@@ -28,6 +29,10 @@ class TrainArgs(Tap):
     """Size of test split"""
     categories: List[str] = ["All"]
     """List of category names to build classifiers for. 'All' signifes L1 classifier"""
+    cuda: bool = True
+    """Boolean whether to use GPU when training"""
+    gpu: int = 0
+    """If cuda = True, specifies id of GPU to use in training"""
 
     # Training args
     epochs: int = 5
@@ -35,6 +40,14 @@ class TrainArgs(Tap):
     lr: float = 1e-5
     """Learning rate for training"""
 
+
+    @property
+    def device(self) -> torch.device:
+        """The :code:`torch.device` on which to load and process data and models."""
+        if not self.cuda:
+            return torch.device('cpu')
+
+        return torch.device('cuda', self.gpu)
 
     def process_args(self) -> None:
         super(TrainArgs, self).process_args()
@@ -47,5 +60,4 @@ class TrainArgs(Tap):
         self.save_dir = os.path.join(self.save_dir, 
                                      self.model, 
                                      datetime.now().strftime("%Y%m%d-%H%M%S"))
-
-
+    

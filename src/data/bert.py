@@ -15,8 +15,6 @@ class BertDataset(Dataset):
         
     def __getitem__(self, index):
         # TODO: batch tokenize 
-        print(f"--{len(self.data)}--")
-        print(self.data.Name)
         inputs = self.tokenizer(
             str(self.data.Name[index]),
             add_special_tokens=True,

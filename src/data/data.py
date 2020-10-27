@@ -16,7 +16,7 @@ def generate_datasets(train_data: pd.DataFrame,
     # for now hardcode l1, l2 
     l1_info = {"name": "All", "n_classes": len(set(train_data['L1']))}
     l1_datasets = (
-        [(l1_info, [dataset.copy() for dataset in datasets])]
+        [(l1_info, [dataset for dataset in datasets])]
         if "All" in categories else []
     )
 
@@ -24,12 +24,14 @@ def generate_datasets(train_data: pd.DataFrame,
     for category in categories:
         n_l2_classes = len(set(train_data.loc[train_data['L1'] == category, 'L2']))
         l2_info = {"name": category, "n_classes": n_l2_classes}
-        l2_datasets.append((l2_info, [dataset[dataset['L1'] == category].copy() 
+
+        l2_datasets.append((l2_info, [dataset[dataset['L1'] == category].reset_index(drop=True)
                                       for dataset in datasets]))
 
     # for each l1 dataset the target is now "l1_target"
-    for _, dataset in l1_datasets:
-        dataset["target"] = dataset["L1_target"]
+    for _, datasets in l1_datasets:
+        for dataset in datasets:
+            dataset["target"] = dataset["L1_target"]
 
     # for each l2 dataset the target is now "l2_target"
     for _, datasets in l2_datasets:
@@ -51,7 +53,12 @@ def split_data(data: pd.DataFrame, train_size: float, val_size: float, test_size
 
     # split along two breakpoints
     data_size = len(data)
-    return np.split(data.sample(frac=1), [
+    data_splits = np.split(data.sample(frac=1), [
         int(train_size * data_size), 
         int((train_size + val_size) * data_size)
     ])
+    
+    for data_split in data_splits:
+        data_split.reset_index(drop=True, inplace=True)
+
+    return data_splits

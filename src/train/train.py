@@ -13,7 +13,8 @@ from .utils import DefaultLogger, set_seed
 from .evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
-
+from .predict import predict
+from .evaluate import evaluate_predictions
 
 def train(model: nn.Module,
           train_dataloader: DataLoader, 
@@ -21,6 +22,7 @@ def train(model: nn.Module,
           valid_targets: List[int],
           args: TrainArgs, 
           save_dir: str,
+          device: torch.device,
           logger: Logger = None):
     """
     Train model for args.epochs, validate after each epoch, and test best model
@@ -39,11 +41,14 @@ def train(model: nn.Module,
     best_acc = 0
     best_epoch = 0
     for epoch in trange(args.epochs):
-        train_epoch(model, train_dataloader, optimizer, loss_fn, logger)
+        logger.debug("Epoch:", epoch)
+
+        # train for an epoch
+        train_epoch(model, train_dataloader, optimizer, loss_fn, device, logger)
 
         # test on validation set after each epoch
-        preds = predict(model, valid_dataloader)
-        acc = evaluate_predictions(preds, valid_targets, logger)
+        valid_preds = predict(model, valid_dataloader, device)
+        val_acc = evaluate_predictions(valid_preds, valid_targets, logger)
         logger.debug(f"Validation Accuracy: {val_acc}")
 
         # if model is better then save
@@ -51,7 +56,7 @@ def train(model: nn.Module,
             best_acc, best_epoch = val_acc, epoch
 
             torch.save({
-                "args": args,
+                #"args": args,
                 "state_dict": model.state_dict(),
             }, os.path.join(save_dir, MODEL_FILE_NAME))
 
@@ -60,6 +65,7 @@ def train_epoch(model: torch.nn.Module,
                 data_loader: DataLoader, 
                 optimizer: Optimizer,
                 loss_fn: Callable,
+                device: torch.device,
                 logger: Logger):
     """
     Train model for a single epoch
@@ -70,9 +76,9 @@ def train_epoch(model: torch.nn.Module,
     model.train()
     iter_count = total_loss = total_correct = total_steps = 0
     for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader)):
-        ids = data['ids'].to(device, dtype = torch.long)
-        mask = data['mask'].to(device, dtype = torch.long)
-        targets = data['targets'].to(device, dtype = torch.long)
+        ids = data['ids'].to(device, dtype=torch.long)
+        mask = data['mask'].to(device, dtype=torch.long)
+        targets = data['targets'].to(device, dtype=torch.long)
         
         # predict and compute loss
         outputs = model(ids, mask)
@@ -84,8 +90,7 @@ def train_epoch(model: torch.nn.Module,
         total_loss += loss.item()
         total_steps += targets.size(0)
         if batch_iter % 100 == 0:
-            logger.debug((f"Epoch: {epoch}, "
-                          f"Iter: {iter_count}, "
+            logger.debug((f"Iter: {iter_count}, "
                           f"Loss: {loss.item() / total_steps}, "
                           f"Accuracy: {(total_correct * 100) / total_steps}"))
             

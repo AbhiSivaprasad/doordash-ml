@@ -1,4 +1,5 @@
 from typing import List
+import numpy as np
 
 import logging
 
@@ -7,7 +8,10 @@ def evaluate_predictions(preds: List[int],
                          logger: logging.Logger = None) -> float:
     preds = np.array(preds) 
     targets = np.array(targets)
-   
+    
+    print(preds)
+    print(targets)
+
     # Currently measure only acc
     return (preds == targets).sum() / len(targets)
 
