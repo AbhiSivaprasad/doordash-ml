@@ -3,13 +3,15 @@ import pandas as pd
 
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
-from .utils import set_seed, DefaultLogger
+from .utils import set_seed, load_checkpoint, DefaultLogger
 from ..data.data import split_data, generate_datasets
 from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
-from ..models.models import DistilBertClassificationModel
+from ..models.models import DistilBertClassificationModel, get_model
 from .train import train
+from .predict import predict
+from .evaluate import evaluate_predictions
 
 
 def run_training(args: TrainArgs):
@@ -41,15 +43,15 @@ def run_training(args: TrainArgs):
     for dataset in datasets:
         # TODO: convert info to object
         info, data_splits = dataset
+        args.num_target_classes = info['n_classes']  # save to easily reproduce model
+        logger.debug("Training Model for Category:", info['name'])
 
         # create subdirectory for saving current model's outputs
         save_dir = os.path.join(args.save_dir, info['name'])
         os.makedirs(save_dir)
-        logger.debug("Training Model for Category:", info['name'])
 
         # build model based on # of target classes
-        if args.model == 'distilbert':
-            model = DistilBertClassificationModel(info['n_classes'])
+        model = get_model(args.model)(info['n_classes'])
         model.to(args.device)
 
         # pass in targets to dataset
@@ -58,9 +60,9 @@ def run_training(args: TrainArgs):
         ]
 
         # pytorch data loaders
-        train_dataloader = DataLoader(train_data, shuffle=False, batch_size=args.train_batch_size)
-        valid_dataloader = DataLoader(valid_data, shuffle=False, batch_size=args.predict_batch_size)
-        test_dataloader = DataLoader(test_data, shuffle=False, batch_size=args.predict_batch_size)
+        train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size)
+        valid_dataloader = DataLoader(valid_data, batch_size=args.predict_batch_size)
+        test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
         # run training
         train(model, train_dataloader, valid_dataloader, valid_data.targets, args, save_dir, args.device)
@@ -69,8 +71,8 @@ def run_training(args: TrainArgs):
         model = load_checkpoint(os.path.join(save_dir, MODEL_FILE_NAME))
         preds = predict(model, test_dataloader, args.device)
         test_acc = evaluate_predictions(preds, test_data.targets)
-        results[info['name']] = test_acc
-        debug(f"Test Accuracy: {test_acc}")
+        results.append((info['name'], test_acc))
+        logger.debug(f"Test Accuracy: {test_acc}")
 
     # Record results
     with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:

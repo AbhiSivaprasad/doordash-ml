@@ -20,3 +20,10 @@ class DistilBertClassificationModel(torch.nn.Module):
         pooler = self.dropout(pooler)
         output = self.classifier(pooler)
         return output
+
+
+def get_model(model_name: str):
+    if model_name == 'distilbert':
+        return DistilBertClassificationModel
+    else:
+        raise ValueError("Invalid model type:", model_name)

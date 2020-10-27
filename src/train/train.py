@@ -9,12 +9,13 @@ from typing import Callable, List
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from .utils import DefaultLogger, set_seed
+from .utils import DefaultLogger, set_seed, save_checkpoint
 from .evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
 from .predict import predict
 from .evaluate import evaluate_predictions
+
 
 def train(model: nn.Module,
           train_dataloader: DataLoader, 
@@ -54,11 +55,9 @@ def train(model: nn.Module,
         # if model is better then save
         if val_acc > best_acc:
             best_acc, best_epoch = val_acc, epoch
-
-            torch.save({
-                #"args": args,
-                "state_dict": model.state_dict(),
-            }, os.path.join(save_dir, MODEL_FILE_NAME))
+            
+            # save model, args
+            save_checkpoint(model, args, os.path.join(save_dir, MODEL_FILE_NAME))
 
 
 def train_epoch(model: torch.nn.Module, 

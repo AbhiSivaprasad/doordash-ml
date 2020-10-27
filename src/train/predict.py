@@ -20,7 +20,7 @@ def predict(model: torch.nn.Module,
             batch_targets = data['targets'].to(device, dtype=torch.long)
 
             # generate outputs
-            outputs = model(ids, mask).squeeze()
+            outputs = model(ids, mask)
 
             # select predictions
             _, batch_preds = torch.max(outputs.data, dim=1)

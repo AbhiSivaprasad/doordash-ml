@@ -2,7 +2,7 @@ import os
 import torch
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from tap import Tap
 
 
@@ -40,6 +40,22 @@ class TrainArgs(Tap):
     lr: float = 1e-5
     """Learning rate for training"""
 
+    # non-user args
+    _num_target_classes = None
+    """Number of target classes. Not passed by user, auto set during execution"""
+
+    @property
+    def num_target_classes(self) -> Optional[int]:
+        """
+        Number of target classes.
+
+        Computed during execution so will return None if accessed before value is set
+        """
+        return self._num_target_classes 
+
+    @num_target_classes.setter
+    def num_target_classes(self, num_classes):
+        self._num_target_classes = num_classes
 
     @property
     def device(self) -> torch.device:
