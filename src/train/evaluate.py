@@ -3,6 +3,7 @@ import numpy as np
 
 import logging
 
+
 def evaluate_predictions(preds: List[int], 
                          targets: List[int], 
                          logger: logging.Logger = None) -> float:
@@ -11,4 +12,3 @@ def evaluate_predictions(preds: List[int],
 
     # Currently measure only acc
     return (preds == targets).sum() / len(targets)
-
