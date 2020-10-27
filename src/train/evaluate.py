@@ -7,6 +7,7 @@ import logging
 def evaluate_predictions(preds: List[int], 
                          targets: List[int], 
                          logger: logging.Logger = None) -> float:
+    """Compute accuracy given predictions and targets"""
     preds = np.array(preds) 
     targets = np.array(targets)
 

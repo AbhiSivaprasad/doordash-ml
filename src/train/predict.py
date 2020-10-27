@@ -1,7 +1,6 @@
 import logging
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 
 import torch
 from torch.optim import Optimizer
@@ -14,7 +13,7 @@ def predict(model: torch.nn.Module,
     model.eval()
     preds = []
     with torch.no_grad():
-        for data in tqdm(data_loader):
+        for data in data_loader:
             ids = data['ids'].to(device, dtype=torch.long)
             mask = data['mask'].to(device, dtype=torch.long)
             batch_targets = data['targets'].to(device, dtype=torch.long)

@@ -24,6 +24,7 @@ class DistilBertClassificationModel(torch.nn.Module):
 
 def get_model(model_name: str):
     if model_name == 'distilbert':
-        return DistilBertClassificationModel
+        tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased') 
+        return DistilBertClassificationModel, tokenizer
     else:
         raise ValueError("Invalid model type:", model_name)

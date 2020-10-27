@@ -1,8 +1,11 @@
 import os, csv
 import pandas as pd
 
+from os import makedirs
+from os.path import join
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
+
 from .utils import set_seed, load_checkpoint, DefaultLogger
 from ..data.data import split_data, generate_datasets
 from ..data.bert import BertDataset
@@ -22,16 +25,19 @@ def run_training(args: TrainArgs):
     # default logger prints
     logger = DefaultLogger()
 
-    # read full dataset
+    # read full dataset and create data splits before splitting by category
+    train_data, valid_data, test_data = load_data(args)
     data = pd.read_csv(args.data_path)
+    if args.separate_test_path:
+        train_data, valid_data, _ = split_data(
+            data, args.train_size + args.test_size, args.valid_size, 0, args.seed)
 
-    # create data splits before splitting by category
-    train_data, valid_data, test_data = split_data(
-        data, args.train_size, args.valid_size, args.test_size, args.seed)
+        test_data = pd.read_csv(args.separate_test_path)
+    else:
+        train_data, valid_data, test_data = split_data(
+            data, args.train_size, args.valid_size, args.test_size, args.seed)
 
-    # load model specific tools
-    if args.model == 'distilbert':
-        tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased') 
+    return train_data, valid_data, test_data
 
     # track results tuples (model name, test accuracy)
     results = []
@@ -43,15 +49,15 @@ def run_training(args: TrainArgs):
     for dataset in datasets:
         # TODO: convert info to object
         info, data_splits = dataset
-        args.num_target_classes = info['n_classes']  # save to easily reproduce model
         logger.debug("Training Model for Category:", info['name'])
 
         # create subdirectory for saving current model's outputs
-        save_dir = os.path.join(args.save_dir, info['name'])
-        os.makedirs(save_dir)
+        save_dir = join(args.save_dir, info['name'])
+        makedirs(save_dir)
 
         # build model based on # of target classes
-        model = get_model(args.model)(info['n_classes'])
+        tokenizer, model_cls = get_model(args.model)
+        model = model_cls(info['n_classes'])
         model.to(args.device)
 
         # pass in targets to dataset
@@ -65,16 +71,27 @@ def run_training(args: TrainArgs):
         test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
         # run training
-        train(model, train_dataloader, valid_dataloader, valid_data.targets, args, save_dir, args.device)
+        train(model=model, 
+              tokenizer=tokenizer, 
+              train_dataloader=train_dataloader, 
+              valid_dataloader=valid_dataloader, 
+              valid_targets=valid_data.targets, 
+              args=args, 
+              save_dir=save_dir, 
+              device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model = load_checkpoint(os.path.join(save_dir, MODEL_FILE_NAME))
+        model = model.from_pretrained(save_dir)
+        tokenizer = tokenizer.from_pretrained(save_dir) 
+        model.to(args.device)
         preds = predict(model, test_dataloader, args.device)
         test_acc = evaluate_predictions(preds, test_data.targets)
+
+        # Track results
         results.append((info['name'], test_acc))
         logger.debug(f"Test Accuracy: {test_acc}")
 
-    # Record results
+    # Write results
     with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:
         writer = csv.writer(f)
         headers, values = zip(*results)
