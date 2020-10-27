@@ -5,7 +5,7 @@ from transformers import DistilBertModel
 # Simple dropout + dense layer on top of DistilBERT
 class DistilBertClassificationModel(torch.nn.Module):
     def __init__(self, output_size):
-        super(DistillBERTClass, self).__init__()
+        super(DistilBertClassificationModel, self).__init__()
         self.model = DistilBertModel.from_pretrained("distilbert-base-uncased")
         self.pre_classifier = nn.Linear(768, 768)
         self.dropout = nn.Dropout(0.3)

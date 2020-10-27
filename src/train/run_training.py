@@ -1,41 +1,51 @@
-import csv
+import os, csv
 import pandas as pd
 
+from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
-from .utils import set_seed
+from .utils import set_seed, DefaultLogger
 from ..data.data import split_data, generate_datasets
+from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
+from ..models.models import DistilBertClassificationModel
+from .train import train
+
 
 def run_training(args: TrainArgs):
     # save args
-    os.makedirs(path)
+    os.makedirs(args.save_dir)
     args.save(os.path.join(args.save_dir, "args.json"))
+
+    # default logger prints
+    logger = DefaultLogger()
 
     # read full dataset
     data = pd.read_csv(args.data_path)
-    num_classes = len(set(data.target))
 
     # create data splits before splitting by category
-    train_data, valid_data, test_data = split_data(data, args.train_size, args.valid_size, args.test_size, args.seed)
+    train_data, valid_data, test_data = split_data(
+        data, args.train_size, args.valid_size, args.test_size, args.seed)
 
     # load model specific tools
     if args.model == 'distilbert':
-        model = DistilBertClassificationModel(num_classes)
         tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased') 
-    else:
-        raise ValueError(f"Unsupported Model {args.model}")
 
     # track results tuples (model name, test accuracy)
     results = []
 
     # For each category generate train, valid, test
-    datasets = generate_datasets(category, [train_data, valid_data, test_data])
+    datasets = generate_datasets(train_data, valid_data, test_data, args.categories)
 
     # For each dataset, create dataloaders and run training
     for dataset in datasets:
-        name, data_splits = dataset
-        debug("Training Model for Category:", name)
+        # TODO: convert info to object
+        info, data_splits = dataset
+        logger.debug("Training Model for Category:", info['name'])
+
+        # build model based on # of target classes
+        if args.model == 'distilbert':
+            model = DistilBertClassificationModel(info['n_classes'])
 
         # pass in targets to dataset
         train_data, valid_data, test_data = [
@@ -43,19 +53,19 @@ def run_training(args: TrainArgs):
         ]
 
         # pytorch data loaders
-        train_dataloader = Dataloader(train_data, shuffle=True, batch_size=args.train_batch_size)
-        valid_dataloader = Dataloader(valid_data, shuffle=True, batch_size=args.predict_batch_size)
-        test_dataloader = Dataloader(test_data, shuffle=True, batch_size=args.predict_batch_size)
+        train_dataloader = DataLoader(train_data, shuffle=True, batch_size=args.train_batch_size)
+        valid_dataloader = DataLoader(valid_data, shuffle=True, batch_size=args.predict_batch_size)
+        test_dataloader = DataLoader(test_data, shuffle=True, batch_size=args.predict_batch_size)
 
         # run training
-        save_dir = os.path.join(args.save_dir, name)
+        save_dir = os.path.join(args.save_dir, info['name'])
         train(model, train_dataloader, valid_dataloader, valid_data.targets, args, save_dir)
 
         # Evaluate on test set using model with best validation score
         model = load_checkpoint(os.path.join(save_dir, MODEL_FILE_NAME))
         preds = predict(model, test_dataloader)
         test_acc = evaluate_predictions(preds, test_data.targets)
-        results[name] = test_acc
+        results[info['name']] = test_acc
         debug(f"Test Accuracy: {test_acc}")
 
     # Record results

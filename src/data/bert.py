@@ -15,8 +15,10 @@ class BertDataset(Dataset):
         
     def __getitem__(self, index):
         # TODO: batch tokenize 
+        print(f"--{len(self.data)}--")
+        print(self.data.Name)
         inputs = self.tokenizer(
-            str(self.data.name[index]),
+            str(self.data.Name[index]),
             add_special_tokens=True,
             max_length=self.max_len,
             padding='max_length',
@@ -36,5 +38,5 @@ class BertDataset(Dataset):
         return self.len
 
     @property
-    def targets():
+    def targets(self):
         return self.data["target"]

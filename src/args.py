@@ -1,3 +1,7 @@
+import os
+
+from datetime import datetime
+from typing import List
 from tap import Tap
 
 
@@ -22,6 +26,8 @@ class TrainArgs(Tap):
     """Size of validation split"""
     test_size: float = 0.1
     """Size of test split"""
+    categories: List[str] = ["All"]
+    """List of category names to build classifiers for. 'All' signifes L1 classifier"""
 
     # Training args
     epochs: int = 5
@@ -40,6 +46,6 @@ class TrainArgs(Tap):
         # index save_dir by model name and timestamp
         self.save_dir = os.path.join(self.save_dir, 
                                      self.model, 
-                                     datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+                                     datetime.now().strftime("%Y%m%d-%H%M%S"))
 
 

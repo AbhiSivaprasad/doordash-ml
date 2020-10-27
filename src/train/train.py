@@ -1,22 +1,24 @@
+import os
 import torch
 import torch.nn as nn
 import pandas as pd
 
 from logging import Logger
 from tqdm import tqdm, trange
-from typing import Callable
+from typing import Callable, List
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from .utils import DefaultLogger
+from .utils import DefaultLogger, set_seed
 from .evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
 
 
-def train(model: nn.Module
+def train(model: nn.Module,
           train_dataloader: DataLoader, 
           valid_dataloader: DataLoader, 
+          valid_targets: List[int],
           args: TrainArgs, 
           save_dir: str,
           logger: Logger = None):
@@ -26,8 +28,8 @@ def train(model: nn.Module
     # set seed for reproducibility
     set_seed(args.seed)
 
-    if logger is None:
-        logger = DefaultLogger()
+    # default logger prints
+    logger = DefaultLogger() if logger is None else logger
 
     # simple loss function, optimizer
     loss_fn = torch.nn.CrossEntropyLoss()
@@ -37,12 +39,12 @@ def train(model: nn.Module
     best_acc = 0
     best_epoch = 0
     for epoch in trange(args.epochs):
-        train_epoch(model, data_loader, optimizer, loss_fn, logger)
+        train_epoch(model, train_dataloader, optimizer, loss_fn, logger)
 
         # test on validation set after each epoch
         preds = predict(model, valid_dataloader)
-        acc = evaluate_predictions(preds, valid_data["target"], logger)
-        debug(f"Validation Accuracy: {val_acc}")
+        acc = evaluate_predictions(preds, valid_targets, logger)
+        logger.debug(f"Validation Accuracy: {val_acc}")
 
         # if model is better then save
         if val_acc > best_acc:
@@ -66,8 +68,8 @@ def train_epoch(model: torch.nn.Module,
     """
     # use custom logger for training
     model.train()
-    iter_count, total_loss, total_correct, total_steps = 0
-    for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader):
+    iter_count = total_loss = total_correct = total_steps = 0
+    for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader)):
         ids = data['ids'].to(device, dtype = torch.long)
         mask = data['mask'].to(device, dtype = torch.long)
         targets = data['targets'].to(device, dtype = torch.long)
@@ -82,13 +84,13 @@ def train_epoch(model: torch.nn.Module,
         total_loss += loss.item()
         total_steps += targets.size(0)
         if batch_iter % 100 == 0:
-            debug((f"Epoch: {epoch}, "
-                   f"Iter: {iter_count}, "
-                   f"Loss: {loss.item() / total_steps}, "
-                   f"Accuracy: {(total_correct * 100) / total_steps}"))
+            logger.debug((f"Epoch: {epoch}, "
+                          f"Iter: {iter_count}, "
+                          f"Loss: {loss.item() / total_steps}, "
+                          f"Accuracy: {(total_correct * 100) / total_steps}"))
             
             # reset stats
-            total_loss, total_correct, total_steps = 0
+            total_loss = total_correct = total_steps = 0
             
         # backprop
         optimizer.zero_grad()
