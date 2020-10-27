@@ -13,11 +13,16 @@ def generate_datasets(train_data: pd.DataFrame,
     """
     datasets = [train_data, valid_data, test_data]
 
-    # for now hardcode l1, l2 
-    l1_info = {"name": "All", "n_classes": len(set(train_data['L1']))}
+    # "L2" is shorthand for all L2 categories 
+    if "L2" in categories:
+        categories.remove("L2")
+        categories.extend(list(set(train_data["L1"])))
+
+    # extract L1, L2 datasets
+    l1_info = {"name": "L1", "n_classes": len(set(train_data['L1']))}
     l1_datasets = (
         [(l1_info, [dataset for dataset in datasets])]
-        if "All" in categories else []
+        if "L1" in categories else []
     )
 
     l2_datasets = []
@@ -40,6 +45,27 @@ def generate_datasets(train_data: pd.DataFrame,
 
     # list of tuples (L1 name, dataset)
     return l1_datasets + l2_datasets
+
+
+def load_data(args: TrainArgs):
+    """
+    Load data and split into train, valid, test if necessary
+
+    If separate path for test data then training data will get it's share. 
+    e.g. (0.8, 0.1, 0.1) --> (0.9, 0.1, 0)
+    """
+    data = pd.read_csv(args.data_path)
+    if args.separate_test_path is not None:
+        train_data, valid_data, _ = split_data(
+            data, args.train_size + args.test_size, args.valid_size, 0, args.seed)
+
+        test_data = pd.read_csv(args.separate_test_path)
+    else:
+        train_data, valid_data, test_data = split_data(
+            data, args.train_size, args.valid_size, args.test_size, args.seed)
+
+    return train_data, valid_data, test_data
+
 
 
 def split_data(data: pd.DataFrame, train_size: float, val_size: float, test_size: float, seed: int):
