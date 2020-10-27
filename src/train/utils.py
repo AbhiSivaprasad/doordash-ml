@@ -4,35 +4,74 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+from os import walk
+from os.path import dirname, join
 from argparse import Namespace
 
 from ..models.models import get_model
 from ..args import TrainArgs
+from ..constants import MODEL_FILE_NAME, VAL_RESULTS_FILE_NAME
 
 
-def save_checkpoint(model: nn.Module, args: TrainArgs, path: str):
+def save_checkpoint(model: nn.Module, args: TrainArgs, val_acc: float, dir_path: str):
+    # save model, args
     torch.save({
         "args": Namespace(**args.as_dict()),
         "state_dict": model.state_dict(),
-    }, path)
+    }, join(dir_path, MODEL_FILE_NAME))
+
+    # save model & tokenizer
+    model.save_pretrained(dir_path)
+    tokenizer.save_pretrained(dir_path)
+
+    # save accuracy in file
+    save_validation_metrics(join(dir_path, VAL_RESULTS_FILE_NAME), val_acc)
 
 
-def load_checkpoint(path: str):
-    state = torch.load(path)
+def save_validation_metrics(path: str, accuracy: float):
+    """Save all validation metrics in a file in path"""
+    with open(path, "w") as f:
+        f.write(f"Accuracy, {accuracy}")
 
-    # load stored args
-    args = TrainArgs()
-    args.from_dict(vars(state['args']), skip_unsettable=True)
 
-    # load model state
-    model = get_model(args.model)(args.num_target_classes)
-    model.load_state_dict(state['state_dict'])
-    model.to(args.device)
+def read_validaton_metrics(path: str) -> float:
+    """Read all validation metrics from file"""
+    with open(path, "r") as f:
+        _, accuracy = ", ".split(f.readline())
 
-    return model
+    return float(accuracy)
+
+
+def load_best_model(path: str):
+    """ 
+    Find all *.val in subdirectories, they contain validation accuracy of the model in same dir 
+    Then load the model the best performing model
+
+    :param path: path of root directory to search for models
+    """
+    model_results_paths = [join(dirpath, filename) 
+                           for dirpath, dirnames, filenames in walk(path) 
+                           for filename in [f for f in filenames if f.endswith(".val")]]
+
+    # iterate through paths and track best model
+    best_acc = 0
+    best_path = None
+    for path in model_results_paths:
+        acc = read_validation_metrics(path)
+        if acc > best:
+            best_acc = acc
+            best_path = path
+
+    # read model in same directory
+    if best_path is not None:
+        model_path = join(dirname(best_path), MODEL_FILE_NAME)
+        return load_checkpoint(model_path)
+    else:
+        raise Exception("No model results found")
 
 
 def set_seed(seed: int):
+    """set seed for reproducibility"""
     random.seed(seed) 
     np.random.seed(seed)
     torch.manual_seed(seed) 
