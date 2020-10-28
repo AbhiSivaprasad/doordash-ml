@@ -3,6 +3,7 @@ import pandas as pd
 
 from os import makedirs
 from os.path import join
+from pathlib import Path
 from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
@@ -20,7 +21,7 @@ from .evaluate import evaluate_predictions
 
 def run_training(args: TrainArgs):
     # save args
-    makedirs(args.save_dir)
+    Path(args.save_dir).mkdir(parents=True, exist_ok=True)
 
     # default logger prints
     logger = DefaultLogger()
