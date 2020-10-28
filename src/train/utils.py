@@ -25,18 +25,18 @@ def save_checkpoint(model: nn.Module, args: TrainArgs, val_acc: float, dir_path:
     tokenizer.save_pretrained(dir_path)
 
     # save accuracy in file
-    save_validation_metrics(join(dir_path, VAL_RESULTS_FILE_NAME), val_acc)
+    save_validation_metrics(dir_path, val_acc)
 
 
-def save_validation_metrics(path: str, accuracy: float):
-    """Save all validation metrics in a file in path"""
-    with open(path, "w") as f:
+def save_validation_metrics(dir_path: str, accuracy: float):
+    """Save all validation metrics in a file in dir_path"""
+    with open(join(dir_path, VAL_RESULTS_FILE_NAME), "w") as f:
         f.write(f"Accuracy, {accuracy}")
 
 
-def read_validaton_metrics(path: str) -> float:
-    """Read all validation metrics from file"""
-    with open(path, "r") as f:
+def read_validaton_metrics(dir_path: str) -> float:
+    """Read all validation metrics from validation file in dir_path"""
+    with open(join(dir_path, VAL_RESULTS_FILE_NAME), "r") as f:
         _, accuracy = ", ".split(f.readline())
 
     return float(accuracy)
@@ -49,23 +49,22 @@ def load_best_model(path: str):
 
     :param path: path of root directory to search for models
     """
-    model_results_paths = [join(dirpath, filename) 
-                           for dirpath, dirnames, filenames in walk(path) 
-                           for filename in [f for f in filenames if f.endswith(".val")]]
+    model_results_dirs = [dirpath
+                          for dirpath, dirnames, filenames in walk(path) 
+                          for filename in [f for f in filenames if f.endswith(".val")]]
 
     # iterate through paths and track best model
     best_acc = 0
     best_path = None
-    for path in model_results_paths:
-        acc = read_validation_metrics(path)
+    for dir_path in model_results_dirs:
+        acc = read_validation_metrics(dir_path)
         if acc > best:
             best_acc = acc
             best_path = path
 
     # read model in same directory
     if best_path is not None:
-        model_path = join(dirname(best_path), MODEL_FILE_NAME)
-        return load_checkpoint(model_path)
+        return load_checkpoint(best_path)
     else:
         raise Exception("No model results found")
 

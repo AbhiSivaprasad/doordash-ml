@@ -1,9 +1,11 @@
+import numpy as np
 import pandas as pd
+
 from typing import Dict
 from tqdm import tqdm
 
 
-def preprocess(read_path: str, write_path: str):
+def preprocess(read_path: str, train_size: float, write_train_path: str, write_test_path: str):
     # TODO: fix mislabeled categories
     # read full data
     df = pd.read_csv(read_path)
@@ -37,8 +39,14 @@ def preprocess(read_path: str, write_path: str):
     # clean item names
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
 
+    # split in train, test
+    df_train, df_test = np.split(df.sample(frac=1), [
+        int(train_size * len(df)), 
+    ])
+
     # write processed data
-    df.to_csv(write_path, index=False)
+    df_train.to_csv(write_train_path, index=False)
+    df_test.to_csv(write_test_path, index=False)
 
 
 # encode target variable
@@ -57,4 +65,7 @@ def clean_string(string: str):
 
 
 if __name__ == "__main__":
-    preprocess("../data/doordash.csv", "../data/processed/doordash.csv")
+    preprocess("../data/doordash.csv", 
+               0.9,
+               "../data/processed/doordash_train.csv", 
+               "../data/processed/doordash_test.csv")

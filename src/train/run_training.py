@@ -19,7 +19,7 @@ from .evaluate import evaluate_predictions
 
 def run_training(args: TrainArgs):
     # save args
-    os.makedirs(args.save_dir)
+    makedirs(args.save_dir)
     args.save(os.path.join(args.save_dir, "args.json"))
 
     # default logger prints
@@ -27,25 +27,12 @@ def run_training(args: TrainArgs):
 
     # read full dataset and create data splits before splitting by category
     train_data, valid_data, test_data = load_data(args)
-    data = pd.read_csv(args.data_path)
-    if args.separate_test_path:
-        train_data, valid_data, _ = split_data(
-            data, args.train_size + args.test_size, args.valid_size, 0, args.seed)
-
-        test_data = pd.read_csv(args.separate_test_path)
-    else:
-        train_data, valid_data, test_data = split_data(
-            data, args.train_size, args.valid_size, args.test_size, args.seed)
-
-    return train_data, valid_data, test_data
-
-    # track results tuples (model name, test accuracy)
-    results = []
-
+    
     # For each category generate train, valid, test
     datasets = generate_datasets(train_data, valid_data, test_data, args.categories)
 
     # For each dataset, create dataloaders and run training
+    results = []  # tuples (model name, test accuracy)
     for dataset in datasets:
         # TODO: convert info to object
         info, data_splits = dataset
