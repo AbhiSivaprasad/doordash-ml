@@ -6,7 +6,7 @@ from os.path import join
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
-from .utils import set_seed, load_checkpoint, DefaultLogger
+from .utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics
 from ..data.data import split_data, generate_datasets
 from ..data.bert import BertDataset
 from ..args import TrainArgs
@@ -32,7 +32,7 @@ def run_training(args: TrainArgs):
     datasets = generate_datasets(train_data, valid_data, test_data, args.categories)
 
     # For each dataset, create dataloaders and run training
-    results = []  # tuples (model name, test accuracy)
+    all_results = []  # tuples (model name, test accuracy)
     for dataset in datasets:
         # TODO: convert info to object
         info, data_splits = dataset
@@ -43,7 +43,7 @@ def run_training(args: TrainArgs):
         makedirs(save_dir)
 
         # build model based on # of target classes
-        tokenizer, model_cls = get_model(args.model)
+        tokenizer, model_cls = get_model(args.model_name)
         model = model_cls(info['n_classes'])
         model.to(args.device)
 
@@ -68,14 +68,16 @@ def run_training(args: TrainArgs):
               device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model = model.from_pretrained(save_dir)
-        tokenizer = tokenizer.from_pretrained(save_dir) 
+        model, tokenizer = load_checkpoint(save_dir)
         model.to(args.device)
         preds = predict(model, test_dataloader, args.device)
         test_acc = evaluate_predictions(preds, test_data.targets)
 
+        # test set in training serves as performance validation
+        save_validation_metrics(dir_path, test_acc)
+
         # Track results
-        results.append((info['name'], test_acc))
+        all_results.append((info['name'], test_acc))
         logger.debug(f"Test Accuracy: {test_acc}")
 
     # Write results

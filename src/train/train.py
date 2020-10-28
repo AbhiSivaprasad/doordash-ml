@@ -17,6 +17,7 @@ from ..constants import MODEL_FILE_NAME
 from .predict import predict
 from .evaluate import evaluate_predictions
 
+
 def train(model: nn.Module,
           tokenizer: PreTrainedTokenizer,
           train_dataloader: DataLoader, 
@@ -49,7 +50,7 @@ def train(model: nn.Module,
         train_epoch(model, train_dataloader, optimizer, loss_fn, device, logger)
 
         # test on validation set after each epoch
-        valid_preds = predict(model, tokenizer, valid_dataloader, device)
+        valid_preds = predict(model, valid_dataloader, device)
         val_acc = evaluate_predictions(valid_preds, valid_targets, logger)
         logger.debug(f"Validation Accuracy: {val_acc}")
 
@@ -58,7 +59,7 @@ def train(model: nn.Module,
             best_acc, best_epoch = val_acc, epoch
             
             # save model, args
-            save_checkpoint(model, args, val_acc, save_dir)
+            save_checkpoint(model, tokenizer, args, val_acc, save_dir)
 
 
 def train_epoch(model: torch.nn.Module, 

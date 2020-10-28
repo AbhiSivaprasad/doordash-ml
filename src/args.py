@@ -7,7 +7,7 @@ from tap import Tap
 
 
 class TrainArgs(Tap):
-    model: str
+    model_name: str
     """Name of model to train"""
     save_dir: str = "output"
     """Directly to save log outputs, model, and results"""
