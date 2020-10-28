@@ -6,7 +6,22 @@ from typing import List, Optional
 from tap import Tap
 
 
-class TrainArgs(Tap):
+class CommonArgs(Tap):
+    cuda: bool = True
+    """Boolean whether to use GPU when training"""
+    gpu: int = 0
+    """If cuda = True, specifies id of GPU to use in training"""
+
+    @property
+    def device(self) -> torch.device:
+        """The :code:`torch.device` on which to load and process data and models."""
+        if not self.cuda:
+            return torch.device('cpu')
+
+        return torch.device('cuda', self.gpu)
+
+
+class TrainArgs(CommonArgs):
     save_dir: str = "output"
     """Directly to save log outputs, model, and results"""
     data_path: str
@@ -30,10 +45,6 @@ class TrainArgs(Tap):
     categories: List[str] = ["L1"]
     """List of category names to build classifiers for. 'L1' signifes L1 classifier. 
     'L2' signifies all L2 classifiers."""
-    cuda: bool = True
-    """Boolean whether to use GPU when training"""
-    gpu: int = 0
-    """If cuda = True, specifies id of GPU to use in training"""
 
     # Model args
     model_name: str
@@ -49,15 +60,7 @@ class TrainArgs(Tap):
     lr: float = 1e-5
     """Learning rate for training"""
 
-    @property
-    def device(self) -> torch.device:
-        """The :code:`torch.device` on which to load and process data and models."""
-        if not self.cuda:
-            return torch.device('cpu')
-
-        return torch.device('cuda', self.gpu)
-    
-    # validators
+   # validators
     def validate_split_sizes(self):
         # validate train/valid/test split sizes
         if not self.train_size + self.valid_size + self.test_size == 1:
@@ -83,7 +86,7 @@ class TrainArgs(Tap):
         self.validate_categories()
 
 
-class PredictArgs(Tap):
+class PredictArgs(CommonArgs):
     taxonomy_dir: str
     """Path to directory with taxonomy"""
     models_path: str

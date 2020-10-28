@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Dict
 from tqdm import tqdm
 
-from src.data.taxonomy import write_taxonomy
+from src.data.taxonomy import Taxonomy
 
 
 def preprocess(read_path: str, 
@@ -49,8 +49,6 @@ def preprocess(read_path: str,
         # Set all L2 targets for L1 category
         for l2_category, class_id in l2_class_name_to_id.items():
             df.loc[(df['L1'] == l1_category) & (df['L2'] == l2_category), 'L2_target'] = class_id
-
-    
    
     # convert float class ids to ints
     df['L1_target'] = df['L1_target'].astype(int) 
@@ -69,9 +67,7 @@ def preprocess(read_path: str,
     df_test.to_csv(write_test_path, index=False)
 
     # write taxonomy
-    l1_class_names_to_ids_list = sorted(l1_class_name_to_id.items(), key=lambda x: x[1])
-    l1_class_names, ids = list(zip(*l1_class_names_to_ids_list))
-    write_taxonomy(l1_class_names, ids, taxonomy_dir_path)
+    Taxonomy(l1_class_name_to_id).write(taxonomy_dir_path)
 
 
 # encode target variable

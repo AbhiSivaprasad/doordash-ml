@@ -1,16 +1,22 @@
-import numpy as np
+import torch
 import torch.nn as nn
+import numpy as np
 
 from torch.utils.data import DataLoader
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 
-def batch_predict(*args, strategy='greedy', **kwargs):
+def batch_predict(l1_model: nn.Module,
+                  l2_models_dict: Dict[int, nn.Module], 
+                  data_loader: DataLoader,
+                  device: torch.device, 
+                  strategy='greedy', 
+                  **kwargs):
     """Dispatch appropriate prediction function based on strategy"""
     if strategy == 'greedy':
-        return batch_predict_greedy(l1_model, l2_models_dict, data_loader)
+        return batch_predict_greedy(l1_model, l2_models_dict, data_loader, device)
     elif strategy == 'complete':
-        return batch_predict_complete_search(l1_model, l2_models_dict, data_loader)
+        return batch_predict_complete_search(l1_model, l2_models_dict, data_loader, device)
     else:
         raise ValueError("Invalid batch prediction strategy supplied:", strategy)
 
@@ -36,7 +42,7 @@ def batch_predict_greedy(l1_model: nn.Module,
 
 def batch_predict_complete_search(l1_model: nn.Module,
                                   l2_models_dict: Dict[int, nn.Module], 
-                                  data_loader: DataLoader): -> List[Tuple[int]]:
+                                  data_loader: DataLoader) -> List[Tuple[int]]:
     """Compute batch predictions by computing probability of every branch 
 
     :param l2_models_dict: key = int L1 class id, value = corresponding L2 model

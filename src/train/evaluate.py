@@ -26,12 +26,12 @@ def evaluate_batch_predictions(preds: List[Tuple[int]], targets: List[Tuple[int]
     scores = preds == targets
 
     # L1 accuracy and Overall accuracy
-    l1_acc = scores[:, 0].mean()
-    total_acc = scores.all(axis=1).mean()
+    l1_overall_acc = scores[:, 0].mean()
+    overall_acc = scores.all(axis=1).mean()
 
     # L2 accuracy per class
-    l2_accs = {}  # key = class id, value = acc
+    l1_class_accs = {}  # key = class id, value = acc
     for class_id in range(num_classes):
-        l2_accs[class_id] = scores[targets == class_id].all(axis=1).mean()
+        l1_class_accs[class_id] = scores[targets[:, 0] == class_id].all(axis=1).mean()
 
-    return total_acc, l1_acc, l2_accs
+    return overall_acc, l1_overall_acc, l1_class_accs 
