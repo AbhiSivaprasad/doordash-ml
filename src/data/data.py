@@ -20,15 +20,16 @@ def generate_datasets(train_data: pd.DataFrame,
         categories.remove("L2")
         categories.extend(list(set(train_data["L1"])))
 
-    # extract L1, L2 datasets
+    # extract L1 datasets
     l1_info = {"name": "L1", "n_classes": len(set(train_data['L1']))}
     l1_datasets = (
         [(l1_info, [dataset for dataset in datasets])]
         if "L1" in categories else []
     )
 
+    # extract L2 datasets
     l2_datasets = []
-    for category in categories:
+    for category in [c for c in categories if c != "L1"]:
         n_l2_classes = len(set(train_data.loc[train_data['L1'] == category, 'L2']))
         l2_info = {"name": category, "n_classes": n_l2_classes}
 

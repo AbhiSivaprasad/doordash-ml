@@ -19,13 +19,13 @@ def run_predictions(args: PredictArgs):
     taxonomy = read_taxonomy(args.taxonomy_dir)
     l1_model, l1_tokenizer = load_best_model(join(args.models_path, "L1"))
     l2_models_dict = {}  # key = class id, value = Model
-    for category in listdir(args.models_path):
+    for class_id, category in enumerate(taxonomy['category_to_class_id']):
         path = join(args.models_path, category)
         if not isdir(path):
             continue
 
         model, _ = load_best_model(join(args.models_path, category))
-        l2_models_dict[taxonomy['category_to_class_id'][category]] = model
+        l2_models_dict[class_id] = model
 
     # get raw test data
     test_data = pd.read_csv(args.test_path)
