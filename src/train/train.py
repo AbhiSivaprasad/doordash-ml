@@ -1,6 +1,7 @@
 import os
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pandas as pd
 
 from logging import Logger
@@ -59,7 +60,7 @@ def train(model: nn.Module,
             best_acc, best_epoch = val_acc, epoch
             
             # save model, args
-            save_checkpoint(model, tokenizer, args, val_acc, save_dir)
+            save_checkpoint(model, tokenizer, args, save_dir)
 
 
 def train_epoch(model: torch.nn.Module, 
@@ -82,9 +83,9 @@ def train_epoch(model: torch.nn.Module,
         targets = data['targets'].to(device, dtype=torch.long)
         
         # predict and compute loss
-        outputs = model(ids, mask)
-        loss =  loss_fn(outputs, targets)
-        _, preds = torch.max(outputs.data, dim=1)
+        logits = model(ids, mask)[0]
+        loss = F.cross_entropy(logits, targets)
+        _, preds = torch.max(logits.data, dim=1)
         
         # track loss/acc
         total_correct += (preds==targets).sum().item()

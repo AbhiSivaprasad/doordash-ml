@@ -7,8 +7,6 @@ from tap import Tap
 
 
 class TrainArgs(Tap):
-    model_name: str
-    """Name of model to train"""
     save_dir: str = "output"
     """Directly to save log outputs, model, and results"""
     data_path: str
@@ -37,6 +35,14 @@ class TrainArgs(Tap):
     gpu: int = 0
     """If cuda = True, specifies id of GPU to use in training"""
 
+    # Model args
+    model_name: str
+    """Name of model to train"""
+    cls_hidden_dim: int = 768
+    """Size of hidden layer in classification head"""
+    cls_dropout: float = 0.3
+    """Dropout after hidden layer activation in clhahlassification head"""
+
     # Training args
     epochs: int = 5
     """Number of epochs to train model for"""
@@ -52,12 +58,12 @@ class TrainArgs(Tap):
         return torch.device('cuda', self.gpu)
     
     # validators
-    def validate_split_sizes():
+    def validate_split_sizes(self):
         # validate train/valid/test split sizes
         if not self.train_size + self.valid_size + self.test_size == 1:
             raise ValueError("train_size, valid_size, test_size must sum to 1")
 
-    def validate_categories():
+    def validate_categories(self):
         # 'L2' signfies all L2 categories so if it exists 'L1' can be the only other passed in category
         if 'L2' in self.categories:
             required_len = 1 if 'L1' not in self.categories else 2
@@ -69,7 +75,7 @@ class TrainArgs(Tap):
 
         # index save_dir by model name and timestamp
         self.save_dir = os.path.join(self.save_dir, 
-                                     self.model, 
+                                     self.model_name, 
                                      datetime.now().strftime("%Y%m%d-%H%M%S"))
         
         # validate 

@@ -19,10 +19,10 @@ def predict(model: torch.nn.Module,
             batch_targets = data['targets'].to(device, dtype=torch.long)
 
             # generate outputs
-            outputs = model(ids, mask)
+            logits = model(ids, mask)[0]
 
             # select predictions
-            _, batch_preds = torch.max(outputs.data, dim=1)
+            _, batch_preds = torch.max(logits.data, dim=1)
 
             # track predictions
             preds.extend(batch_preds.tolist())

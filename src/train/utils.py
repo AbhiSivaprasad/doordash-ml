@@ -19,8 +19,8 @@ def save_checkpoint(model: nn.Module,
                     args: TrainArgs, 
                     dir_path: str):
     """Save model and training args in dir_path"""
-    # save model, args
-    torch.save(args.as_dict(), join(dir_path, TRAINING_ARGS_FILE_NAME))
+    # List[str] cannot be pickled currently
+    args.save(join(dir_path, TRAINING_ARGS_FILE_NAME), skip_unpicklable=True)  
 
     # save model & tokenizer
     model.save_pretrained(dir_path)
@@ -30,10 +30,11 @@ def save_checkpoint(model: nn.Module,
 def load_checkpoint(dir_path: str):
     """Load model saved in directory dir_path"""
     # read training args
-    args = torch.load(join(dir_path, TRAINING_ARGS_FILE_NAME))
+    args = TrainArgs().load(join(dir_path, TRAINING_ARGS_FILE_NAME), 
+                            skip_unsettable=True)
 
     # fetch model and tokenizer from model name in saved training args
-    model_cls, tokenizer = get_model(args.model_name)
+    model, tokenizer = get_model(args)
     return model.from_pretrained(dir_path), tokenizer.from_pretrained(dir_path)
 
 

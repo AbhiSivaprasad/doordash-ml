@@ -2,7 +2,7 @@ import numpy as np
 import torch.nn as nn
 
 from torch.utils.data import DataLoader
-from typing import List
+from typing import List, Tuple
 
 
 def batch_predict(*args, strategy='greedy', **kwargs):
@@ -15,7 +15,7 @@ def batch_predict(*args, strategy='greedy', **kwargs):
 
 def batch_predict_greedy(l1_model: nn.Module,
                          l2_models_dict: Dict[int, nn.Module], 
-                         data_loader: DataLoader) -> List[Tuple[int, int]]:
+                         data_loader: DataLoader) -> List[Tuple[int]]:
     """Compute batch predictions greedily by maximizing L1, L2 classifiers separately
 
     :param l2_models_dict: key = int L1 class id, value = corresponding L2 model

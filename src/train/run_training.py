@@ -7,11 +7,11 @@ from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
 from .utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics
-from ..data.data import split_data, generate_datasets
+from ..data.data import load_data, generate_datasets
 from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
-from ..models.models import DistilBertClassificationModel, get_model
+from ..models.models import get_model
 from .train import train
 from .predict import predict
 from .evaluate import evaluate_predictions
@@ -20,7 +20,7 @@ from .evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # save args
     makedirs(args.save_dir)
-    args.save(os.path.join(args.save_dir, "args.json"))
+    args.save(os.path.join(args.save_dir, "args.json"), skip_unpicklable=True)
 
     # default logger prints
     logger = DefaultLogger()
@@ -43,8 +43,7 @@ def run_training(args: TrainArgs):
         makedirs(save_dir)
 
         # build model based on # of target classes
-        tokenizer, model_cls = get_model(args.model_name)
-        model = model_cls(info['n_classes'])
+        model, tokenizer = get_model(info['n_classes'], args)
         model.to(args.device)
 
         # pass in targets to dataset
