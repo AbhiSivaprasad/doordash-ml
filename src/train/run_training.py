@@ -3,6 +3,7 @@ import pandas as pd
 
 from os import makedirs
 from os.path import join
+from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
@@ -20,7 +21,6 @@ from .evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # save args
     makedirs(args.save_dir)
-    args.save(os.path.join(args.save_dir, "args.json"), skip_unpicklable=True)
 
     # default logger prints
     logger = DefaultLogger()
@@ -39,8 +39,9 @@ def run_training(args: TrainArgs):
         logger.debug("Training Model for Category:", info['name'])
 
         # create subdirectory for saving current model's outputs
-        save_dir = join(args.save_dir, info['name'])
+        save_dir = join(args.save_dir, info['name'], datetime.now().strftime("%Y%m%d-%H%M%S"))
         makedirs(save_dir)
+        args.save(join(save_dir, "args.json"), skip_unpicklable=True)
 
         # build model based on # of target classes
         model, tokenizer = get_model(info['n_classes'], args)

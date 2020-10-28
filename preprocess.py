@@ -30,9 +30,10 @@ def preprocess(read_path: str,
 
     # Remove class variables with < 5 examples
     l1_categories = list(set(df['L1']))
-    category_sizes = df.groupby(["L1", "L2"]).size() 
-    for l1_category, l2_category, in sizes.index:
+    category_sizes = df.groupby(["L1", "L2"]).size()
+    for l1_category, l2_category, in list(category_sizes[category_sizes < 5].index):
         # drop indices in (l1_category, l2_category)
+        print(f"Removing (L1, L2) pair ({l1_category}, {l2_category})")
         df = df.drop(df[(df['L1'] == l1_category) & (df['L2'] == l2_category)].index)
 
     # Prepare class variable for L1 classifier
@@ -40,6 +41,7 @@ def preprocess(read_path: str,
     df['L1_target'] = df['L1'].apply(lambda x: encode_target(x, l1_class_name_to_id))
 
     # Prepare class variable for L2 classifiers
+    l1_categories = list(set(df['L1']))
     for l1_category in tqdm(l1_categories):
         l2_class_name_to_id = {}
         df.loc[df['L1'] == l1_category, 'L2'].apply(lambda x: encode_target(x, l2_class_name_to_id))
