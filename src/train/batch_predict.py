@@ -41,10 +41,22 @@ def batch_predict_complete_search(l1_model: nn.Module,
 
     :param l2_models_dict: key = int L1 class id, value = corresponding L2 model
     """
-    l1_probs = None
+    _, l1_probs = predict(l1_model, data_loader, return_probs=True)
 
-    # get max length from models
-    l2_probs = np.full((len(l1_predictions), len(l2_models_dict)), -1)
+    # get max number of l2 categories
+    max_l2_categories = max(l2_models_dict.values(), lambda model: model.config.num_labels)
+
+    # create ndarray to save l2 model probs. Initialize to -1 to catch any unset values
+    l2_probs = np.full((l1_probs.shape[0], l1_probs.shape[1], max_l2_categories), -1)
+    
+    for l1_class_id, model in l2_models_dict.items():
+        l2_class_probs = predict(model, data_loader, return_probs=True)
+
+        # place computed probs in a slice of dims 0, 2
+        l2_probs[:, l1_class_id, l2_class_probs.shape[1]] = l2_class_probs
+
+    # ensure there are no -1's remanining in probabilities
+    assert -1 not in l2_probs
     
     # multiply every L2 probability with its corresponding L1 probability
     agg_probs = l1_probs * l2_probs
@@ -63,5 +75,5 @@ def batch_predict_beam_search(l1_model: nn.Module,
                               l2_models_dict: Dict[int, nn.Module], 
                               data_loader: DataLoader,
                               beam_size: int):
-"""More computationally efficient than complete search at the cost of not exploring all paths"""
-pass
+    """More computationally efficient than complete search at the cost of not exploring all paths"""
+    pass

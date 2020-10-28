@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 
 def predict(model: torch.nn.Module, 
             data_loader: DataLoader,
-            device: torch.device):
+            device: torch.device,
+            return_probs: bool = False):
     model.eval()
     preds = []
     with torch.no_grad():
@@ -20,12 +21,16 @@ def predict(model: torch.nn.Module,
 
             # generate outputs
             logits = model(ids, mask)[0]
+            
+            # compute probabilities
+            if return_probs:
+                probs = np.array(F.softmax(logits.data, dim=1))
 
             # select predictions
-            _, batch_preds = torch.max(logits.data, dim=1)
+            _, batch_preds = torch.max(logits, dim=1)
 
             # track predictions
             preds.extend(batch_preds.tolist())
 
-    return preds
+    return (preds, probs) if return_probs else preds
 
