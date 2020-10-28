@@ -28,18 +28,27 @@ def preprocess(read_path: str,
     # Baby & Child has been mislabeled as Baby
     df['L1'] = df['L1'].apply(lambda x: "Baby & Child" if str(x) == "Baby" else x)
 
+    # Remove class variables with < 5 examples
+    l1_categories = list(set(df['L1']))
+    category_sizes = df.groupby(["L1", "L2"]).size() 
+    for l1_category, l2_category, in sizes.index:
+        # drop indices in (l1_category, l2_category)
+        df = df.drop(df[(df['L1'] == l1_category) & (df['L2'] == l2_category)].index)
+
     # Prepare class variable for L1 classifier
     l1_class_name_to_id = {}
     df['L1_target'] = df['L1'].apply(lambda x: encode_target(x, l1_class_name_to_id))
 
     # Prepare class variable for L2 classifiers
-    l1_categories = list(set(df['L1']))
     for l1_category in tqdm(l1_categories):
         l2_class_name_to_id = {}
         df.loc[df['L1'] == l1_category, 'L2'].apply(lambda x: encode_target(x, l2_class_name_to_id))
     
+        # Set all L2 targets for L1 category
         for l2_category, class_id in l2_class_name_to_id.items():
             df.loc[(df['L1'] == l1_category) & (df['L2'] == l2_category), 'L2_target'] = class_id
+
+    
    
     # convert float class ids to ints
     df['L1_target'] = df['L1_target'].astype(int) 

@@ -16,3 +16,12 @@ def get_model(num_labels: int, args: TrainArgs):
         return model, tokenizer
     else:
         raise ValueError("Invalid model type:", args.model_name)
+
+
+def get_model_class(args: TrainArgs):
+    if args.model_name == 'distilbert':
+        tokenizer = DistilBertTokenizer
+        model = DistilBertForSequenceClassification
+        return model, tokenizer
+    else:
+        raise ValueError("Invalid model type:", args.model_name)

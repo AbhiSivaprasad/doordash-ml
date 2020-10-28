@@ -73,7 +73,7 @@ def run_training(args: TrainArgs):
         test_acc = evaluate_predictions(preds, test_data.targets)
 
         # test set in training serves as performance validation
-        save_validation_metrics(dir_path, test_acc)
+        save_validation_metrics(save_dir, test_acc)
 
         # Track results
         all_results.append((info['name'], test_acc))
@@ -82,7 +82,7 @@ def run_training(args: TrainArgs):
     # Write results
     with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:
         writer = csv.writer(f)
-        headers, values = zip(*results)
+        headers, values = zip(*all_results)
 
         # write results
         writer.writerow(headers)

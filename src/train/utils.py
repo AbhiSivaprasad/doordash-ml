@@ -9,7 +9,7 @@ from os.path import dirname, join
 from argparse import Namespace
 from transformers import PreTrainedTokenizer
 
-from ..models.models import get_model
+from ..models.models import get_model_class
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, VAL_RESULTS_FILE_NAME, TRAINING_ARGS_FILE_NAME
 
@@ -34,8 +34,8 @@ def load_checkpoint(dir_path: str):
                             skip_unsettable=True)
 
     # fetch model and tokenizer from model name in saved training args
-    model, tokenizer = get_model(args)
-    return model.from_pretrained(dir_path), tokenizer.from_pretrained(dir_path)
+    model_cls, tokenizer_cls = get_model_class(args)
+    return model_cls.from_pretrained(dir_path), tokenizer_cls.from_pretrained(dir_path)
 
 
 def save_validation_metrics(dir_path: str, accuracy: float):
