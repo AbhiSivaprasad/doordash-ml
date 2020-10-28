@@ -75,3 +75,17 @@ class TrainArgs(Tap):
         # validate 
         self.validate_split_sizes()
         self.validate_categories()
+
+
+class PredictArgs(Tap):
+    taxonomy_dir: str
+    """Path to directory with taxonomy"""
+    models_path: str
+    """Path to root models directory. There should be a subdirectory structure according to taxonomy
+    e.g. subdirs are named L1 categories"""
+    test_path: str
+    """Path to test set"""
+    max_seq_length: int = 100
+    """Max sequence length for BERT models. Longer inputs are truncated"""
+    predict_batch_size: int = 32
+    """Batch size during model prediction"""

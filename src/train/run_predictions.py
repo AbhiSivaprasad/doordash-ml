@@ -25,7 +25,7 @@ def run_predictions(args: PredictArgs):
             continue
 
         model, _ = load_best_model(join(args.models_path, category))
-        l2_models_dict[taxonomy.['category_to_class_id'][category]] = model
+        l2_models_dict[taxonomy['category_to_class_id'][category]] = model
 
     # get raw test data
     test_data = pd.read_csv(args.test_path)

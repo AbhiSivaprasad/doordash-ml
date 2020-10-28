@@ -3,6 +3,8 @@ import numpy as np
 
 from typing import List
 
+from ..args import TrainArgs
+
 
 def generate_datasets(train_data: pd.DataFrame, 
                       valid_data: pd.DataFrame, 
