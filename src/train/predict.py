@@ -34,7 +34,8 @@ def predict(model: torch.nn.Module,
             preds.extend(batch_preds.tolist())
 
     # stack probabilities from batches
-    probs = torch.cat(probs_batches, dim=0).cpu().numpy()
+    if return_probs:
+        probs = torch.cat(probs_batches, dim=0).cpu().numpy()
 
     return (preds, probs) if return_probs else preds
 

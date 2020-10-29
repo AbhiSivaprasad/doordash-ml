@@ -70,6 +70,9 @@ def batch_predict_complete_search(l1_model: nn.Module,
 
         # place computed probs in a slice of dims 0, 2
         l2_probs[:, l1_class_id, :l2_class_probs.shape[1]] = l2_class_probs
+
+        # move back to cpu to keep gpu memory low
+        model.to(torch.device('cpu'))
     
     # multiply every L2 probability with its corresponding L1 probability
     agg_probs = l1_probs[:, :, np.newaxis] * l2_probs
