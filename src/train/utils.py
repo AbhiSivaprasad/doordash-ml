@@ -7,7 +7,7 @@ import torch.nn as nn
 from os import walk
 from os.path import dirname, join
 from argparse import Namespace
-from transformers import PreTrainedTokenizer
+from transformers import PreTrainedTokenizer, AutoModelForSequenceClassification, AutoTokenizer, DistilBertTokenizer
 
 from ..models.models import get_model_class
 from ..args import TrainArgs
@@ -20,7 +20,7 @@ def save_checkpoint(model: nn.Module,
                     dir_path: str):
     """Save model and training args in dir_path"""
     # List[str] cannot be pickled currently
-    args.save(join(dir_path, TRAINING_ARGS_FILE_NAME), skip_unpicklable=True)  
+    # args.save(join(dir_path, TRAINING_ARGS_FILE_NAME), skip_unpicklable=True)  
 
     # save model & tokenizer
     model.save_pretrained(dir_path)
@@ -29,13 +29,9 @@ def save_checkpoint(model: nn.Module,
 
 def load_checkpoint(dir_path: str):
     """Load model saved in directory dir_path"""
-    # read training args
-    args = TrainArgs().load(join(dir_path, TRAINING_ARGS_FILE_NAME), 
-                            skip_unsettable=True)
-
-    # fetch model and tokenizer from model name in saved training args
-    model_cls, tokenizer_cls = get_model_class(args)
-    return model_cls.from_pretrained(dir_path), tokenizer_cls.from_pretrained(dir_path)
+    return (AutoModelForSequenceClassification.from_pretrained(dir_path), 
+            DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
+            # AutoTokenizer.from_pretrained(dir_path)
 
 
 def save_validation_metrics(dir_path: str, accuracy: float):
@@ -44,10 +40,10 @@ def save_validation_metrics(dir_path: str, accuracy: float):
         f.write(f"Accuracy, {accuracy}")
 
 
-def read_validaton_metrics(dir_path: str) -> float:
+def read_validation_metrics(dir_path: str) -> float:
     """Read all validation metrics from validation file in dir_path"""
     with open(join(dir_path, VAL_RESULTS_FILE_NAME), "r") as f:
-        _, accuracy = ", ".split(f.readline())
+        _, accuracy = f.readline().split(", ")
 
     return float(accuracy)
 
@@ -68,16 +64,14 @@ def load_best_model(path: str):
     best_path = None
     for dir_path in model_results_dirs:
         acc = read_validation_metrics(dir_path)
-        if acc > best:
+        if acc > best_acc:
             best_acc = acc
-            best_path = path
+            best_path = dir_path
 
     # read model in same directory
     if best_path is not None:
         # read model from best_path dir
-        model_cls = get_model(args.model_name)
-        model.from_pretrained(best_path), tokenizer.from_pretrained(best_path)
-        return model, tokenizer
+        return load_checkpoint(best_path) 
     else:
         raise Exception("No model results found")
 

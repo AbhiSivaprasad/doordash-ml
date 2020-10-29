@@ -25,12 +25,16 @@ class BertDataset(Dataset):
         
         ids = inputs['input_ids']
         mask = inputs['attention_mask']
-
-        return {
+        
+        item = {
             'ids': torch.tensor(ids, dtype=torch.long),
             'mask': torch.tensor(mask, dtype=torch.long),
-            'targets': torch.tensor(self.data.target[index], dtype=torch.long)
-        } 
+        }
+
+        if "target" in self.data.columns:
+            item["targets"] = torch.tensor(self.data.target[index], dtype=torch.long) 
+        
+        return item
 
     def __len__(self):
         return self.len
