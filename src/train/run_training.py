@@ -8,7 +8,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
-from .utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics
+from .utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint
 from ..data.data import load_data, generate_datasets
 from ..data.bert import BertDataset
 from ..args import TrainArgs
@@ -70,7 +70,11 @@ def run_training(args: TrainArgs):
 
         # Evaluate on test set using model with best validation score
         model, tokenizer = load_checkpoint(save_dir)
+
+        # move model
         model.to(args.device)
+        
+        # predict & evaluate
         preds = predict(model, test_dataloader, args.device)
         test_acc = evaluate_predictions(preds, test_data.targets)
 
