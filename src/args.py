@@ -96,5 +96,7 @@ class PredictArgs(CommonArgs):
     """Path to test set"""
     max_seq_length: int = 100
     """Max sequence length for BERT models. Longer inputs are truncated"""
-    predict_batch_size: int = 32
+    batch_size: int = 32
     """Batch size during model prediction"""
+    strategy: str = "greedy"
+    """Strategy to merge L1, L2 predictions. Options: greedy, complete"""
