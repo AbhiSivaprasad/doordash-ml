@@ -15,7 +15,7 @@ def evaluate_predictions(preds: List[int],
     return (preds == targets).sum() / len(targets)
 
 
-def evaluate_batch_predictions(preds: List[Tuple[int]], targets: List[Tuple[int]], num_classes: int):
+def evaluate_batch_predictions(preds: List[Tuple[int]], targets: List[Tuple[int]], num_l1_classes: int):
     """Compute accuracy given predictions and targets
     
     :param preds: List of Tuples with predicted class ids. Format: [(L1, L2), (L1, L2), ...]
@@ -31,7 +31,7 @@ def evaluate_batch_predictions(preds: List[Tuple[int]], targets: List[Tuple[int]
 
     # L2 accuracy per class
     l1_class_accs = {}  # key = class id, value = acc
-    for class_id in range(num_classes):
+    for class_id in range(num_l1_classes):
         l1_class_accs[class_id] = scores[targets[:, 0] == class_id].all(axis=1).mean()
 
     return overall_acc, l1_overall_acc, l1_class_accs 
