@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader
 def predict(model: torch.nn.Module, 
             data_loader: DataLoader,
             device: torch.device,
-            return_probs: bool = False):
+            return_probs: bool = False): Tuple[np.ndarray, np.ndarray]:
+    """Predict with model on data from data_loader. Return predictions and confidences"""
     model.eval()
     preds = []
     probs_batches = []
@@ -32,10 +33,15 @@ def predict(model: torch.nn.Module,
 
             # track predictions
             preds.extend(batch_preds.tolist())
+    
+    # convert from list to numpy
+    preds = np.array(preds)
 
-    # stack probabilities from batches
+    # stack probabilities from batches and get max probability across classes as confidence score
+    probs = None
     if return_probs:
-        probs = torch.cat(probs_batches, dim=0).cpu().numpy()
+        probs = torch.cat(probs_batches, dim=0)
+        probs = torch.max(probs, dim=1).cpu().numpy()
 
-    return (preds, probs) if return_probs else preds
+    return preds, probs
 
