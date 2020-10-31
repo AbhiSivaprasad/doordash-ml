@@ -22,7 +22,7 @@ class CommonArgs(Tap):
 
 
 class TrainArgs(CommonArgs):
-    save_dir: str = "output"
+    save_dir: str = "logs/train"
     """Directly to save log outputs, model, and results"""
     data_path: str
     """Path to data"""
@@ -87,6 +87,8 @@ class TrainArgs(CommonArgs):
 
 
 class PredictArgs(CommonArgs):
+    save_dir: str = "logs/preds"
+    """Directly to save log outputs, model, and results"""
     taxonomy_dir: str
     """Path to directory with taxonomy"""
     models_path: str

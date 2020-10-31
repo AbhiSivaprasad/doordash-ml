@@ -20,7 +20,7 @@ from .evaluate import evaluate_predictions
 
 
 def run_training(args: TrainArgs):
-    # save args
+    # create logging dir
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
 
     # default logger prints

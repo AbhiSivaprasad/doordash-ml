@@ -58,7 +58,7 @@ def batch_predict_greedy(l1_model: nn.Module,
         model.to(torch.device('cpu'))
     
     # join predictions. (batch, 2)
-    preds = np.concatenate((l1_preds, l2_preds), axis=1)
+    preds = np.concatenate((l1_preds[:, np.newaxis], l2_preds[:, np.newaxis]), axis=1)
 
     # preds, L1 confidence, L1 & L2 confidence
     return preds, l1_probs, l1_probs * l2_probs
