@@ -55,7 +55,7 @@ def run_predictions(args: PredictArgs):
     
     # evaluate precision, recall with confidence scores
     confidence_ordering = l2_confidence_scores.argsort()[::-1]  
-    scores = (preds == targets).all(axis=1)
+    scores = (preds == targets).all(axis=1)[confidence_ordering]
     precisions = evaluate_lr_precision(scores)
 
     # compute prediction accuracy
@@ -71,4 +71,6 @@ def run_predictions(args: PredictArgs):
         class_name = taxonomy.class_id_to_category(class_id)
         logger.debug(f"L1 Category {class_name}:", l1_class_acc)
 
-    pd.DataFrame(precisions).to_csv(join(args.save_dir, "lr_precisions.csv"), header=False, index=False)
+    precisions = pd.DataFrame(np.concatenate((precisions, l2_confidence_scores[confidence_ordering][:, np.newaxis], scores[:, np.newaxis]), axis=1))
+    precisions.columns = ['Left precision', 'Right precision', 'Confidence', 'Scores']
+    precisions.to_csv(join(args.save_dir, "lr_precisions.csv"), header=False, index=False)

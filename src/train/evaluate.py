@@ -41,6 +41,6 @@ def evaluate_lr_precision(results: np.ndarray):
 
     # calculate cumulative means from left and right
     left_precision = results.cumsum() / denom
-    right_precision = results[::-1].cumsum() / denom
+    right_precision = (results[::-1].cumsum() / denom)[::-1]
 
     return np.concatenate((left_precision[:, np.newaxis], right_precision[:, np.newaxis]), axis=1)
