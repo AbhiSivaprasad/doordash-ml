@@ -11,7 +11,8 @@ def preprocess(read_path: str,
                train_size: float, 
                write_train_path: str, 
                write_test_path: str, 
-               taxonomy_dir_path: str):
+               raw_taxonomy_read_path: str,
+               taxonomy_write_dir: str):
     # set seed for reproducibility
     np.random.seed(0)
 
@@ -66,8 +67,23 @@ def preprocess(read_path: str,
     df_train.to_csv(write_train_path, index=False)
     df_test.to_csv(write_test_path, index=False)
 
-    # write taxonomy
-    Taxonomy(l1_class_name_to_id).write(taxonomy_dir_path)
+    # build & write taxonomy
+    build_taxonomy(raw_taxonomy_read_path).write(taxonomy_write_dir)
+
+def build_taxonomy(path):
+    # TODO: sort alphabetically
+    taxonomy = Taxonomy()
+    raw_taxonomy = pd.read_csv(path)
+
+    # add L1 categories
+    for l1 in list(set(raw_taxonomy["L1"])):
+        taxonomy.add("root", l1)
+
+    # add L2 categories 
+    for row in raw_taxonomy[["L1", "L2"]].itertuples():
+        taxonomy.add(row.L1, row.L2)
+
+    return taxonomy
 
 
 # encode target variable
@@ -90,4 +106,5 @@ if __name__ == "__main__":
                0.9,
                "data/processed/doordash_train.csv", 
                "data/processed/doordash_test.csv",
+               "data/raw/taxonomy.csv",
                "data/processed/")
