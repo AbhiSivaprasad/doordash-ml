@@ -48,7 +48,7 @@ class Taxonomy:
         if parent_node is None:
             raise ValueError(f"No node found with category: {parent_category}")
 
-        # add child
+        # create child node and add to parent
         parent_node.add_child(child_category)
 
     def category_name_to_class_ids(self, category_name: str) -> List[int]:
@@ -57,13 +57,13 @@ class Taxonomy:
         e.g. Categories x, y are L1, L2 categories for L3 category z then
              return [class_id(x), class_id(y), class_id(z)]
         """
-        node, class_ids_path = self._find_node_by_name(self._root, category_name, [])
+        # walk through tree to find node by name (unique identifier)
+        node, node_path = self._find_node_by_name(self._root, category_name, [])
 
         if node is None:
             raise ValueError(f"No node found with category: {category_name}")
 
-        # return path of class ids
-        return class_ids_path
+        return [n.class_id for n in node_path]
 
     def class_ids_to_category_name(self, class_ids: List[int]) -> str:
         """
@@ -83,6 +83,7 @@ class Taxonomy:
         return node.category_name
 
     def read(self, dir_path: str) -> Taxonomy:
+        """Read the human readable representation into native data structure"""
         # read taxonomy from dir
         with open(join(dir_path, TAXONOMY_FILE_NAME), 'r') as f:
             readable_taxonomy = json.load(f)
@@ -96,18 +97,27 @@ class Taxonomy:
         with open(join(dir_path, TAXONOMY_FILE_NAME), 'w') as f:
             f.write(str(self))
 
-    def _find_node_by_name(self, node: TaxonomyNode, category_name: str, class_ids_path: List[int]):
-        """Search through taxonomy to find node with name category_name"""
+    def _find_node_by_name(self, 
+                           node: TaxonomyNode, 
+                           category_name: str, 
+                           node_path: List[TaxonomyNode]) -> Tuple[TaxonomyNode, List[TaxonomyNode]]:
+        """
+        Search through taxonomy to find node with name category_name. 
+
+        :param node_path: Node path from root to current point in recursion, call with []
+        return: Tuple (node, node path) where node path is the list of nodes from root to desired node.
+                Root is not included in node path 
+        """
         # check if current node is desired category
         if node.category_name == category_name:
-            return node, class_ids_path
+            return node, node_path
 
         # recurse through children looking for category name
         for child in node.children:
-            class_ids_path.append(child.class_id)
+            node_path.append(child)
             if self._find_node_by_name(child, category_name, [])[0] is not None:
-                return child, class_ids_path
-            class_ids_path.pop()
+                return child, node_path
+            node_path.pop()
 
         # category not found
         return None, None
