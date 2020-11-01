@@ -19,7 +19,8 @@ from transformers import DistilBertTokenizer
 
 def run_predictions(args: PredictArgs):
     """
-    Construct hierarchy of models and run predictions
+    Construct hierarchy of models and run predictions.
+    For now, hardcode L1, L2
     """
     logger = DefaultLogger()
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)  # create logging dir
@@ -28,18 +29,20 @@ def run_predictions(args: PredictArgs):
     test_data = pd.read_csv(args.test_path)
 
     # read taxonomy
-    taxonomy = Taxonomy.read(args.taxonomy_dir)
+    taxonomy = Taxonomy().read(args.taxonomy_dir)
 
     # load best models
     l1_model, l1_tokenizer = load_best_model(join(args.models_path, "L1"))
     l2_models_dict = {}  # key = class id, value = Model
-    for category, class_id in taxonomy.category_to_class_id.items():
-        path = join(args.models_path, category)
+
+    # hack to get l1 models, write an iterator when generalizing
+    for node in taxonomy._root.children:
+        path = join(args.models_path, node.category_name)
         if not isdir(path):
             continue
 
-        model, _ = load_best_model(join(args.models_path, category))
-        l2_models_dict[class_id] = model
+        model, _ = load_best_model(join(args.models_path, node.category_name))
+        l2_models_dict[node.class_id] = model
 
     # assumes same tokenizer used on all models
     test_data = BertDataset(test_data, l1_tokenizer, args.max_seq_length)
@@ -60,7 +63,7 @@ def run_predictions(args: PredictArgs):
 
     # compute prediction accuracy
     overall_acc, l1_overall_acc, l1_class_accs = \
-        evaluate_batch_predictions(preds, targets, taxonomy.num_classes)
+        evaluate_batch_predictions(preds, targets, len(taxonomy._root.children))
 
     # log results
     logger.debug("Overall Accuracy:", overall_acc)
@@ -68,17 +71,22 @@ def run_predictions(args: PredictArgs):
 
     logger.debug("Accuracies by Category:")
     for class_id, l1_class_acc in l1_class_accs.items():
-        class_name = taxonomy.class_id_to_category(class_id)
+        class_name = taxonomy.class_ids_to_category_name([class_id])
         logger.debug(f"L1 Category {class_name}:", l1_class_acc)
 
-    precisions = pd.DataFrame({
-        'Ordering': confidence_ordering, 
+    # process predictions
+    preds = pd.DataFrame(preds, columns=["L1_preds_class", "L2_preds_class"])
+    preds["L1_preds"] = [taxonomy.class_ids_to_category_name([r.L1_preds_class])
+                         for r in preds.itertuples()]
+    preds["L2_preds"] = [taxonomy.class_ids_to_category_name([r.L1_preds_class, r.L2_preds_class])
+                         for r in preds.itertuples()]
+
+    # aggregate results
+    results = pd.concat([pd.DataFrame({
         'Scores': scores,
         'Left precision': precisions[:, 0], 
         'Right precision': precisions[:, 1], 
         'Confidence': l2_confidence_scores, 
         'L1 Confidence': l1_confidence_scores,
-        'L1_preds': pd.Series(preds[:, 0]).apply(lambda x: taxonomy.class_id_to_category(x)),
-        'L2_preds': preds[:, 1] 
-    })
-    precisions.to_csv(join(args.save_dir, "lr_precisions.csv"), index=False)
+    }), preds], axis=1)
+    results.to_csv(join(args.save_dir, "results.csv"), index=False)
