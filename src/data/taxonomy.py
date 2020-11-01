@@ -1,31 +1,69 @@
-import json
-
-from typing import List, Dict
+from __future__ import annotations
+from typing import List, Dict, Optional
 from os.path import join
-
 from ..constants import TAXONOMY_FILE_NAME
 
+import json
 
+
+class TaxonomyNode:
+    """Represents a category in the taxonomy"""
+    def __init__(self, category_name: str, class_id: Optional[int], children: List[TaxonomyNode] = None):
+        """
+        :param class_id: Class id for category, None for root
+        """
+        self.category_name = category_name
+        self.class_id = class_id
+        self.children = children if children is not None else []
+
+    def add_child(self, category_name: str):
+        """
+        Add child node to taxonomy node with name category_name
+
+        Class id is auto-assigned as new index in self.children
+        """
+        self.children.append(
+            TaxonomyNode(category_name=category_name, class_id=len(self.children))
+        )
+
+
+#TODO add validity checks
 class Taxonomy:
-    def __init__(self, root: TaxonomyNode):
-        """Create with read method"""
-        self._root = root
-
-        # category name --> L1, ..., Lx class id 
-        self._category_name_to_class_ids = {} 
-        self._build_category_name_to_class_ids(self._root, [])
+    def __init__(self, root: TaxonomyNode = None):
+        # create generic root node if not passed
+        self._root = (root 
+                      if root is not None 
+                      else TaxonomyNode(category_name="root", class_id=None))
 
     def __str__(self):
         # readable represenation
         return json.dumps(self._readable_repr(self._root), indent=4)
-     
-   def category_name_to_class_ids(self, category_name: str) -> List[int]:
+
+    def add(self, parent_category: str, child_category: str):
+        """
+        Add child node to taxonomy, child's class id is assigned as index in parent's children
+        """
+        parent_node, _ = self._find_node_by_name(self._root, parent_category, [])
+
+        if parent_node is None:
+            raise ValueError(f"No node found with category: {parent_category}")
+
+        # add child
+        parent_node.add_child(child_category)
+
+    def category_name_to_class_ids(self, category_name: str) -> List[int]:
         """
         Given a category name which uniquely identifies a category, return L1...Lx class ids
         e.g. Categories x, y are L1, L2 categories for L3 category z then
              return [class_id(x), class_id(y), class_id(z)]
         """
-        return self._category_name_to_class_ids[category_name]
+        node, class_ids_path = self._find_node_by_name(self._root, category_name, [])
+
+        if node is None:
+            raise ValueError(f"No node found with category: {category_name}")
+
+        # return path of class ids
+        return class_ids_path
 
     def class_ids_to_category_name(self, class_ids: List[int]) -> str:
         """
@@ -44,77 +82,63 @@ class Taxonomy:
 
         return node.category_name
 
-    def write(self, dir_path: str):
-        """Write a human readable representation of taxonomy to a file in specified dir"""
-        # write to a specific file name in dir
-        with open(join(dir_path, TAXONOMY_FILE_NAME), 'w') as f:
-            f.write(str(self))
-
-    @classmethod
     def read(self, dir_path: str) -> Taxonomy:
         # read taxonomy from dir
         with open(join(dir_path, TAXONOMY_FILE_NAME), 'r') as f:
             readable_taxonomy = json.load(f)
 
         # parse into native data structure
-        return Taxonomy(taxonomy=self._read_from_readable_repr(readable_taxonomy))
+        return Taxonomy(root=self._read_from_readable_repr(readable_taxonomy))
  
-    def _build_category_name_to_class_ids(self, node: TaxonomyNode, class_ids: List[int]):
-        """
-        Build a map from a category name (unique identifier) and its L1,...,Lx class ids
-        e.g. Categories x, y are L1, L2 categories for L3 category z then
-             add entry (z, [class_id(x), class_id(y), class_id(z)])
-        
-        :param class_ids: class ids to assign to current category, maintained during recursion
-        """
-        # register current category
-        if class_ids:  # skip if root
-            self._category_name_to_class_ids[node.category_name] = class_ids.copy()
+    def write(self, dir_path: str):
+        """Write a human readable representation of taxonomy to a file in specified dir"""
+        # write to a specific file name in dir
+        with open(join(dir_path, TAXONOMY_FILE_NAME), 'w') as f:
+            f.write(str(self))
 
-        # when recursing into child add child's id to current path
-        for class_id, child in enumerate(node.children):
-            class_ids.append(class_id)
-            self._build_category_name_to_class_ids(child, class_ids)  # build subtree rooted at child
-            class_ids.pop()
-   
+    def _find_node_by_name(self, node: TaxonomyNode, category_name: str, class_ids_path: List[int]):
+        """Search through taxonomy to find node with name category_name"""
+        # check if current node is desired category
+        if node.category_name == category_name:
+            return node, class_ids_path
+
+        # recurse through children looking for category name
+        for child in node.children:
+            class_ids_path.append(child.class_id)
+            if self._find_node_by_name(child, category_name, [])[0] is not None:
+                return child, class_ids_path
+            class_ids_path.pop()
+
+        # category not found
+        return None, None
+  
     def _read_from_readable_repr(self, readable_repr, level=1):
         """Convert readable representation to native data structure"""
         # child representations stored in key "L3" in level 3
-        children_repr = readable_repr[f"L{level}"]
+        # innermost nodes don't have children so key doesn't exist
+        children_repr = (readable_repr[f"L{level}"] 
+                         if f"L{level}" in readable_repr 
+                         else [])
 
         # collect node information then recurse on children
-        taxonomy = TaxonomyNode(
-            category_name=readable_repr["category"]
-            class_id=readable_repr["class_id"]
+        return TaxonomyNode(
+            category_name=readable_repr["category"],
+            class_id=readable_repr["class id"],
             children=[self._read_from_readable_repr(child_repr, level + 1) 
                       for child_repr in children_repr]
-        }
+        )
 
-        return taxonomy
-
-     def _readable_repr(self, node: TaxonomyNode, level=1):
+    def _readable_repr(self, node: TaxonomyNode, level=1):
         """Generate a readable, structured representation of the taxonomy"""
+        node_repr = {
+            "class id": node.class_id,
+            "category": node.category_name,
+        }
+        
         # get representation of each child
         children_repr = [self._readable_repr(child, level + 1) for child in node.children]
-        
-        return {
-            "class_id": node.class_id,
-            "category": node.category_name,
-            f"L{level}": children_repr
-        }
- 
-    @property
-    def category_id_to_name(self):
-        return self._category_id_to_name
 
-    @property
-    def num_classes(self):
-        return len(self.category_to_class_id)
+        if children_repr:
+            node_repr[f"L{level}"] = children_repr
 
-
-class TaxonomyNode:
-    """Represents a category in the taxonomy"""
-    def __init__(self, category_name: str, class_id: int, children: List[TaxonomyNode] = None):
-        self.category_name = category_name
-        self.class_id = class_id
-        self.children = children if children is not None else []
+        return node_repr

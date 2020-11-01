@@ -11,7 +11,7 @@ def generate_datasets(train_data: pd.DataFrame,
                       test_data: pd.DataFrame,
                       categories: List[str]):
     """
-    Given a dataset, generate subsets for each category
+    Given a dataset, generate subsets for each category. Currently hardcode L1, L2.
     """
     datasets = [train_data, valid_data, test_data]
 
