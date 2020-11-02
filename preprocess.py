@@ -18,7 +18,7 @@ def preprocess(read_path: str,
     np.random.seed(0)
     random.seed(0)
 
-    # TODO: fix mislabeled categories
+    # TODO: do duplicate check on names
     # read full data
     df = pd.read_csv(read_path)
 
@@ -33,6 +33,7 @@ def preprocess(read_path: str,
  
     # build taxonomy
     taxonomy = build_taxonomy(pd.read_csv(raw_taxonomy_read_path))
+    taxonomy.validate()
 
     # catch invalid class labels 
     align_to_taxonomy(df, taxonomy)
@@ -62,7 +63,6 @@ def preprocess(read_path: str,
     # write processed data
     df_train.to_csv(write_train_path, index=False)
     df_test.to_csv(write_test_path, index=False)
-
 
 def fix_mislabeled_categories(df):
     # Baby & Child has been mislabeled as Baby
@@ -111,16 +111,16 @@ def align_to_taxonomy(df, taxonomy):
 
 
 def remove_small_categories(df, taxonomy, threshold: int):
-    category_sizes = df.groupby(["L1", "L2"]).size()
-    invalid_categories = list(category_sizes[category_sizes <= threshold].index)
+    for node in taxonomy.iter_level(2):
+        category = node.category_name
+        size = len(df[df["L2"] == category])
+        if size <= threshold:
+            print(f"Removing L2 category {category} with {size} examples")
+            taxonomy.remove(category)
 
-    for l1_category, l2_category in invalid_categories:
-        # drop indices in (l1_category, l2_category)
-        print(f"Removing (L1, L2) pair ({l1_category}, {l2_category})")
-        df = df[(df['L1'] != l1_category) | (df['L2'] != l2_category)]
-        taxonomy.remove(l2_category)
+            # l2 category should be unique
+            df = df[(df['L2'] != category)]
 
-    df.reset_index(drop=True, inplace=True)
     return df
 
 def build_taxonomy(df):

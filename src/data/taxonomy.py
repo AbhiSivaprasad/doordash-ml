@@ -36,13 +36,9 @@ class TaxonomyNode:
         """
         index = -1
         for i, child in enumerate(self.children):
-            #print(child.category_name)
-            #print(category_name)
             if child.category_name == category_name:
                 index = i
 
-        #print([c.category_name for c in self.children])
-        #print(index)
         if index != -1:
             del self.children[index]
 
@@ -147,6 +143,21 @@ class Taxonomy:
 
         return node.category_name
     
+    def validate(self):
+        """Ensure that there are no duplicate category names"""
+        names_set = set()
+        for node in self.iter():
+            if node.category_name not in names_set:
+                names_set.add(node.category_name)
+            else:
+                raise ValueError("Category {node.category_name} is duplicated in taxonomy")
+
+    def iter(self):
+        return self._iter(self._root, 0)
+
+    def iter_level(self, level: int = 1):
+        return self._iter_level(self._root, level)    
+
     def read(self, dir_path: str) -> 'Taxonomy':
         """Read the human readable representation into native data structure"""
         # read taxonomy from dir
@@ -161,6 +172,22 @@ class Taxonomy:
         # write to a specific file name in dir
         with open(join(dir_path, TAXONOMY_FILE_NAME), 'w') as f:
             f.write(str(self))
+
+    def _iter(self, node: TaxonomyNode, depth: int):
+        """Iterate recursively and output all nodes in tree except root"""
+        if depth != 0:
+            yield node
+
+        for child in node.children:
+            yield from self._iter(child, depth + 1)
+
+    def _iter_level(self, node: TaxonomyNode, level: int):
+        """Iterate recursively and output all nodes at given depth"""
+        if level == 0:
+            yield node
+        else:
+            for child in node.children:
+                yield from self._iter_level(child, level - 1)
 
     def _find_node_by_name(self, 
                            node: TaxonomyNode, 
