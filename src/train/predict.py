@@ -24,7 +24,7 @@ def predict(model: torch.nn.Module,
 
             # generate outputs
             logits = model(ids, mask)[0]
-            
+
             # compute probabilities
             if return_probs:
                 probs_batches.append(F.softmax(logits, dim=1))

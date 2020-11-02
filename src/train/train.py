@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
+import numpy as np
 
 from logging import Logger
 from tqdm import tqdm, trange
@@ -23,7 +24,7 @@ def train(model: nn.Module,
           tokenizer: PreTrainedTokenizer,
           train_dataloader: DataLoader, 
           valid_dataloader: DataLoader, 
-          valid_targets: List[int],
+          valid_targets: np.array,
           args: TrainArgs, 
           save_dir: str,
           device: torch.device,
@@ -51,7 +52,7 @@ def train(model: nn.Module,
         train_epoch(model, train_dataloader, optimizer, loss_fn, device, logger)
 
         # test on validation set after each epoch
-        valid_preds = predict(model, valid_dataloader, device)
+        valid_preds = predict(model, valid_dataloader, device)[0]
         val_acc = evaluate_predictions(valid_preds, valid_targets, logger)
         logger.debug(f"Validation Accuracy: {val_acc}")
 
