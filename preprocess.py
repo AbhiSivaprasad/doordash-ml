@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import pandas as pd
 
@@ -15,6 +16,7 @@ def preprocess(read_path: str,
                taxonomy_write_dir: str):
     # set seed for reproducibility
     np.random.seed(0)
+    random.seed(0)
 
     # TODO: fix mislabeled categories
     # read full data
@@ -26,31 +28,25 @@ def preprocess(read_path: str,
     # rename columns
     df.columns = ['Name', 'L1', 'L2']
 
-    # Baby & Child has been mislabeled as Baby
-    df['L1'] = df['L1'].apply(lambda x: "Baby & Child" if str(x) == "Baby" else x)
+    # clean mislabeled categories and ensure alignment with taxonomy
+    fix_mislabeled_categories(df)
+ 
+    # build taxonomy
+    taxonomy = build_taxonomy(pd.read_csv(raw_taxonomy_read_path))
 
-    # Remove class variables with < 5 examples
-    l1_categories = list(set(df['L1']))
-    category_sizes = df.groupby(["L1", "L2"]).size()
-    for l1_category, l2_category, in list(category_sizes[category_sizes < 5].index):
-        # drop indices in (l1_category, l2_category)
-        print(f"Removing (L1, L2) pair ({l1_category}, {l2_category})")
-        df = df.drop(df[(df['L1'] == l1_category) & (df['L2'] == l2_category)].index)
+    # catch invalid class labels 
+    align_to_taxonomy(df, taxonomy)
+
+    # remove class variables with <= 5 examples from taxonomy and data
+    df = remove_small_categories(df, taxonomy, threshold=5)
+    
+    # write taxonomy
+    taxonomy.write(taxonomy_write_dir)
 
     # Prepare class variable for L1 classifier
-    l1_class_name_to_id = {}
-    df['L1_target'] = df['L1'].apply(lambda x: encode_target(x, l1_class_name_to_id))
+    df['L1_target'] = df['L1'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[0])
+    df['L2_target'] = df['L2'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[1])
 
-    # Prepare class variable for L2 classifiers
-    l1_categories = list(set(df['L1']))
-    for l1_category in tqdm(l1_categories):
-        l2_class_name_to_id = {}
-        df.loc[df['L1'] == l1_category, 'L2'].apply(lambda x: encode_target(x, l2_class_name_to_id))
-    
-        # Set all L2 targets for L1 category
-        for l2_category, class_id in l2_class_name_to_id.items():
-            df.loc[(df['L1'] == l1_category) & (df['L2'] == l2_category), 'L2_target'] = class_id
-   
     # convert float class ids to ints
     df['L1_target'] = df['L1_target'].astype(int) 
     df['L2_target'] = df['L2_target'].astype(int) 
@@ -67,20 +63,79 @@ def preprocess(read_path: str,
     df_train.to_csv(write_train_path, index=False)
     df_test.to_csv(write_test_path, index=False)
 
-    # build & write taxonomy
-    build_taxonomy(raw_taxonomy_read_path).write(taxonomy_write_dir)
 
-def build_taxonomy(path):
-    # TODO: sort alphabetically
-    taxonomy = Taxonomy()
-    raw_taxonomy = pd.read_csv(path)
+def fix_mislabeled_categories(df):
+    # Baby & Child has been mislabeled as Baby
+    mislabeled_l1_categories_as_l1 = {
+        "Baby": "Baby & Child",
+        "Condiments": "Pantry",
+        "Beauty": "Personal Care"
+    }
 
-    # add L1 categories
-    for l1 in list(set(raw_taxonomy["L1"])):
-        taxonomy.add("root", l1)
+    df['L1'] = df['L1'].apply(lambda x: mislabeled_l1_categories_as_l1.get(x, x))
+
+    # Condiment, Beauty are marked L1 but are L2
+    mislabeled_l1_categories_as_l2 = {
+        ("Produce", "Canned Specialty"): ("Pantry", "Canned Specialty"),
+        ("Household", "Dog Treats & Toys"): ("Pet Care", "Dog Treats & Toys"),
+        ('Household', 'Hand Soap'): ('Personal Care', 'Hand Soap'),
+        ('Fresh Food', 'Health'): ('Fresh Food', 'Sandwiches'),
+        ('Drinks', 'Ice'): ('Frozen', 'Ice'),
+        ('Household', 'Liquor'): ('Alcohol', 'Liquor'),
+        ('Vitamins', 'Liquor'): ('Alcohol', 'Liquor'),
+        ('Frozen', 'Poultry'): ('Meat & Fish', 'Poultry'),
+        ('Frozen', 'Seafood'): ('Meat & Fish', 'Seafood'),
+        ('Frozen', 'Sides'): ('Fresh Food', 'Sides'),
+        ('Snacks', 'Wings'): ('Fresh Food', 'Sides'),
+        ('Personal Care', 'Sun care'): ('Personal Care', 'Sun Care')
+    }
+
+    # print([t for t in df[['L1', 'L2']].itertuples()])
+    df[['L1', 'L2']] = [mislabeled_l1_categories_as_l2.get((t.L1, t.L2), (t.L1, t.L2)) 
+                        for t in df[['L1', 'L2']].itertuples()]
+
+def align_to_taxonomy(df, taxonomy):
+    #TODO: move to tree diff
+    unique_categories = df[['L1', 'L2']].drop_duplicates(['L1', 'L2'])
+
+    # check L1 categories
+    for l1 in list(set(unique_categories["L1"])):
+        if not taxonomy.has_link("root", l1):
+            print("bad L1 category:", l1)
+            print(f"\thas L2 categories:", set(unique_categories[unique_categories['L1'] == l1]['L2']))
 
     # add L2 categories 
-    for row in raw_taxonomy[["L1", "L2"]].itertuples():
+    for row in unique_categories[["L1", "L2"]].itertuples():
+        if not taxonomy.has_link(row.L1, row.L2):
+            print("bad L2 Category. (L1, L2):", (row.L1, row.L2))
+
+
+def remove_small_categories(df, taxonomy, threshold: int):
+    category_sizes = df.groupby(["L1", "L2"]).size()
+    invalid_categories = list(category_sizes[category_sizes <= threshold].index)
+
+    for l1_category, l2_category in invalid_categories:
+        # drop indices in (l1_category, l2_category)
+        print(f"Removing (L1, L2) pair ({l1_category}, {l2_category})")
+        df = df[(df['L1'] != l1_category) | (df['L2'] != l2_category)]
+        taxonomy.remove(l2_category)
+
+    df.reset_index(drop=True, inplace=True)
+    return df
+
+def build_taxonomy(df):
+    # TODO: sort alphabetically
+    taxonomy = Taxonomy()
+    unique_categories = df[['L1', 'L2']].drop_duplicates(['L1', 'L2']).sort_values(['L1', 'L2'])
+    
+    # track seen l1 categories
+    seen_l1 = set()
+
+    # add L1, L2 categories 
+    for row in unique_categories[["L1", "L2"]].itertuples():
+        if not row.L1 in seen_l1:
+            taxonomy.add("root", row.L1)
+            seen_l1.add(row.L1)
         taxonomy.add(row.L1, row.L2)
 
     return taxonomy
