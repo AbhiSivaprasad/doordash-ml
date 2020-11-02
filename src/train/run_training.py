@@ -63,7 +63,7 @@ def run_training(args: TrainArgs):
               tokenizer=tokenizer, 
               train_dataloader=train_dataloader, 
               valid_dataloader=valid_dataloader, 
-              valid_targets=valid_data.targets, 
+              valid_targets=valid_data.targets.values, 
               args=args, 
               save_dir=save_dir, 
               device=args.device)
@@ -75,7 +75,7 @@ def run_training(args: TrainArgs):
         model.to(args.device)
         
         # predict & evaluate
-        preds = predict(model, test_dataloader, args.device)
+        preds = predict(model, test_dataloader, args.device)[0]
         test_acc = evaluate_predictions(preds, test_data.targets)
 
         # test set in training serves as performance validation
