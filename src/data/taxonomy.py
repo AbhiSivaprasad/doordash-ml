@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from os.path import join
 from ..constants import TAXONOMY_FILE_NAME
 
@@ -8,7 +7,10 @@ import json
 
 class TaxonomyNode:
     """Represents a category in the taxonomy"""
-    def __init__(self, category_name: str, class_id: Optional[int], children: List[TaxonomyNode] = None):
+    def __init__(self, 
+                 category_name: str, 
+                 class_id: Optional[int], 
+                 children: List['TaxonomyNode'] = None):
         """
         :param class_id: Class id for category, None for root
         """
@@ -22,9 +24,35 @@ class TaxonomyNode:
 
         Class id is auto-assigned as new index in self.children
         """
-        self.children.append(
-            TaxonomyNode(category_name=category_name, class_id=len(self.children))
-        )
+        child = TaxonomyNode(category_name=category_name, class_id=len(self.children))
+        self.children.append(child)
+        return child
+    
+    def remove_child(self, category_name: str):
+        """
+        Remove child node from taxonomy with name category_name
+
+        Class ids of children will be shifted to stay consecutive
+        """
+        index = -1
+        for i, child in enumerate(self.children):
+            #print(child.category_name)
+            #print(category_name)
+            if child.category_name == category_name:
+                index = i
+
+        #print([c.category_name for c in self.children])
+        #print(index)
+        if index != -1:
+            del self.children[index]
+
+            # shift class indices
+            for i in range(index, len(self.children)):
+                self.children[i].class_id -= 1
+
+    def has_child(self, category_name: str) -> bool:
+        """Return whether node has a child with name category_name"""
+        return any(map(lambda c: c.category_name == category_name, self.children))
 
 
 #TODO add validity checks
@@ -39,6 +67,9 @@ class Taxonomy:
         # readable represenation
         return json.dumps(self._readable_repr(self._root), indent=4)
 
+    def __contains__(self, category_name: str):
+        return self._find_node_by_name(self._root, category_name, [])[0] is not None
+
     def add(self, parent_category: str, child_category: str):
         """
         Add child node to taxonomy, child's class id is assigned as index in parent's children
@@ -49,7 +80,41 @@ class Taxonomy:
             raise ValueError(f"No node found with category: {parent_category}")
 
         # create child node and add to parent
-        parent_node.add_child(child_category)
+        child_node = parent_node.add_child(child_category)
+        return child_node
+
+    def add_path(self, categories: List[str]):
+        """
+        Given a path of categories (L1, L2, ..., Lx) move to node if exists, else create.
+        Allows easy creation of taxonomy given dataset with list of L1, ..., Lx per data point>
+        e.g. If L1 exists, but L2 and L3 don't, then create L2 --> L1, and L3 --> L2
+
+        :param categories: List of category names
+        """
+        pass
+
+    def remove(self, category_name: str):
+        """Remove node in taxonomy with name category_name"""
+        node, path = self._find_node_by_name(self._root, category_name, [])
+        
+        if node is None:
+            raise ValueError(f"No node found with category: {category_name}")
+
+        # if the node path has length one, the parent must be the root
+        parent_node = self._root if len(path) == 1 else path[-2]
+        parent_node.remove_child(node.category_name)
+        
+
+    def has_link(self, parent_category, child_category):
+        """Find nodes in self which are not in other"""
+        parent_node, _ = self._find_node_by_name(self._root, parent_category, [])
+
+        # could not find parent node
+        if parent_node is None:
+            return False
+
+        # check if parent has specified child
+        return parent_node.has_child(child_category)
 
     def category_name_to_class_ids(self, category_name: str) -> List[int]:
         """
@@ -81,8 +146,8 @@ class Taxonomy:
                 raise ValueError(f"Taxonomy does not have L{len(class_ids)} category with class ids:", class_ids)
 
         return node.category_name
-
-    def read(self, dir_path: str) -> Taxonomy:
+    
+    def read(self, dir_path: str) -> 'Taxonomy':
         """Read the human readable representation into native data structure"""
         # read taxonomy from dir
         with open(join(dir_path, TAXONOMY_FILE_NAME), 'r') as f:
@@ -115,13 +180,14 @@ class Taxonomy:
         # recurse through children looking for category name
         for child in node.children:
             node_path.append(child)
-            if self._find_node_by_name(child, category_name, [])[0] is not None:
-                return child, node_path
+            node, path = self._find_node_by_name(child, category_name, node_path)
+            if node is not None:
+                return node, path
             node_path.pop()
 
         # category not found
         return None, None
-  
+
     def _read_from_readable_repr(self, readable_repr, level=1):
         """Convert readable representation to native data structure"""
         # child representations stored in key "L3" in level 3
