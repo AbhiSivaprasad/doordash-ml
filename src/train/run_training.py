@@ -1,3 +1,4 @@
+import torch
 import os, csv
 import pandas as pd
 
@@ -63,7 +64,7 @@ def run_training(args: TrainArgs):
               tokenizer=tokenizer, 
               train_dataloader=train_dataloader, 
               valid_dataloader=valid_dataloader, 
-              valid_targets=valid_data.targets.values, 
+              valid_targets=torch.from_numpy(valid_data.targets.values).to(args.device), 
               args=args, 
               save_dir=save_dir, 
               device=args.device)

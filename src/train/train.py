@@ -24,7 +24,7 @@ def train(model: nn.Module,
           tokenizer: PreTrainedTokenizer,
           train_dataloader: DataLoader, 
           valid_dataloader: DataLoader, 
-          valid_targets: np.array,
+          valid_targets: torch.tensor,
           args: TrainArgs, 
           save_dir: str,
           device: torch.device,
@@ -43,8 +43,8 @@ def train(model: nn.Module,
     optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr)
 
     # train model
-    best_acc = 0
-    best_epoch = 0
+    best_loss = 0
+    patience = args.patience
     for epoch in trange(args.epochs):
         logger.debug("Epoch:", epoch)
 
@@ -52,16 +52,27 @@ def train(model: nn.Module,
         train_epoch(model, train_dataloader, optimizer, loss_fn, device, logger)
 
         # test on validation set after each epoch
-        valid_preds = predict(model, valid_dataloader, device)[0]
-        val_acc = evaluate_predictions(valid_preds, valid_targets, logger)
-        logger.debug(f"Validation Accuracy: {val_acc}")
+        valid_preds, valid_probs = predict(model, valid_dataloader, device, return_probs=True)
+        val_acc = evaluate_predictions(valid_preds, valid_targets.cpu().numpy(), logger)
+        val_loss = F.nll_loss(torch.log(valid_probs), valid_targets)
+        logger.debug(f"Validation Accuracy: {val_acc}, Loss: {val_loss}")
 
         # if model is better then save
-        if val_acc > best_acc:
-            best_acc, best_epoch = val_acc, epoch
+        if val_loss > best_loss:
+            best_loss = val_loss
             
             # save model, args
             save_checkpoint(model, tokenizer, args, save_dir)
+
+            # reset patience
+            patience = args.patience
+        else:
+            # val loss has not improved
+            patience -= 1
+
+        # early stopping condition
+        if patience == 0:
+            break
 
 
 def train_epoch(model: torch.nn.Module, 

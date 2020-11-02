@@ -12,7 +12,7 @@ from typing import Tuple
 def predict(model: torch.nn.Module, 
             data_loader: DataLoader,
             device: torch.device,
-            return_probs: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+            return_probs: bool = False) -> Tuple[np.array, torch.Tensor]:
     """Predict with model on data from data_loader. Return predictions and confidences"""
     model.eval()
     preds = []
@@ -42,7 +42,7 @@ def predict(model: torch.nn.Module,
     probs = None
     if return_probs:
         probs = torch.cat(probs_batches, dim=0)
-        probs = torch.max(probs, dim=1)[0].cpu().numpy()
+    #     probs = torch.max(probs, dim=1)[0].cpu().numpy()
 
     return preds, probs
 

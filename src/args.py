@@ -59,6 +59,8 @@ class TrainArgs(CommonArgs):
     """Number of epochs to train model for"""
     lr: float = 1e-5
     """Learning rate for training"""
+    patience: int = 3
+    """Number of epochs to wait for better val accuracy before early stopping"""
 
    # validators
     def validate_split_sizes(self):
