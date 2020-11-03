@@ -61,7 +61,7 @@ def run_training(args: TrainArgs):
         # pytorch data loaders
         train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size)
         valid_dataloader = DataLoader(valid_data, batch_size=args.predict_batch_size)
-        # test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
+        test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
         # run training
         train(model=model, 
@@ -75,8 +75,6 @@ def run_training(args: TrainArgs):
 
         # Evaluate on test set using model with best validation score
         model, tokenizer = load_checkpoint(save_dir)
-        test_data = BertDataset(data_splits[2], tokenizer, args.max_seq_length)
-        test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
         # move model
         model.to(args.device)

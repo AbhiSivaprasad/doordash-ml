@@ -27,8 +27,7 @@ def save_checkpoint(model: nn.Module,
 def load_checkpoint(dir_path: str):
     """Load model saved in directory dir_path"""
     return (AutoModelForSequenceClassification.from_pretrained(dir_path), 
-            DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
-            #AutoTokenizer.from_pretrained(dir_path))
+            AutoTokenizer.from_pretrained(dir_path, do_lower_case=False))
 
 
 def save_validation_metrics(dir_path: str, accuracy: float, loss: float):
