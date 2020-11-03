@@ -1,6 +1,7 @@
-import torch
 import os, csv
+import torch
 import pandas as pd
+import torch.nn.functional as F
 
 from os import makedirs
 from os.path import join
@@ -76,15 +77,17 @@ def run_training(args: TrainArgs):
         model.to(args.device)
         
         # predict & evaluate
-        preds = predict(model, test_dataloader, args.device)[0]
-        test_acc = evaluate_predictions(preds, test_data.targets)
+        preds, probs = predict(model, test_dataloader, args.device, return_probs=True)
+        test_acc = evaluate_predictions(preds, test_data.targets.values)
+        test_loss = F.nll_loss(torch.log(probs), 
+                               torch.from_numpy(test_data.targets.values).to(args.device))
 
         # test set in training serves as performance validation
-        save_validation_metrics(save_dir, test_acc)
+        save_validation_metrics(save_dir, test_acc, test_loss)
 
         # Track results
         all_results.append((info['name'], test_acc))
-        logger.debug(f"Test Accuracy: {test_acc}")
+        logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
 
     # Write results
     with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:

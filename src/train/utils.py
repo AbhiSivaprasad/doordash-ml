@@ -19,9 +19,6 @@ def save_checkpoint(model: nn.Module,
                     args: TrainArgs, 
                     dir_path: str):
     """Save model and training args in dir_path"""
-    # List[str] cannot be pickled currently
-    # args.save(join(dir_path, TRAINING_ARGS_FILE_NAME), skip_unpicklable=True)  
-
     # save model & tokenizer
     model.save_pretrained(dir_path)
     tokenizer.save_pretrained(dir_path)
@@ -30,22 +27,24 @@ def save_checkpoint(model: nn.Module,
 def load_checkpoint(dir_path: str):
     """Load model saved in directory dir_path"""
     return (AutoModelForSequenceClassification.from_pretrained(dir_path), 
-            DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
-            # AutoTokenizer.from_pretrained(dir_path)
+            #DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
+            AutoTokenizer.from_pretrained(dir_path))
 
 
-def save_validation_metrics(dir_path: str, accuracy: float):
+def save_validation_metrics(dir_path: str, accuracy: float, loss: float):
     """Save all validation metrics in a file in dir_path"""
     with open(join(dir_path, VAL_RESULTS_FILE_NAME), "w") as f:
-        f.write(f"Accuracy, {accuracy}")
+        f.write(f"Accuracy, {accuracy}\n")
+        f.write(f"Loss, {loss}\n")
 
 
 def read_validation_metrics(dir_path: str) -> float:
     """Read all validation metrics from validation file in dir_path"""
     with open(join(dir_path, VAL_RESULTS_FILE_NAME), "r") as f:
         _, accuracy = f.readline().split(", ")
+        _, loss = f.readline().split(", ")
 
-    return float(accuracy)
+    return float(accuracy), float(loss)
 
 
 def load_best_model(path: str):

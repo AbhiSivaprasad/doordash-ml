@@ -43,7 +43,7 @@ def train(model: nn.Module,
     optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr)
 
     # train model
-    best_loss = 0
+    best_loss = None
     patience = args.patience
     for epoch in trange(args.epochs):
         logger.debug("Epoch:", epoch)
@@ -58,7 +58,7 @@ def train(model: nn.Module,
         logger.debug(f"Validation Accuracy: {val_acc}, Loss: {val_loss}")
 
         # if model is better then save
-        if val_loss > best_loss:
+        if best_loss is None or val_loss < best_loss:
             best_loss = val_loss
             
             # save model, args
