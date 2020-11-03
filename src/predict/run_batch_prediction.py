@@ -17,7 +17,7 @@ from ..data.taxonomy import Taxonomy
 from transformers import DistilBertTokenizer
 
 
-def run_predictions(args: PredictArgs):
+def run_batch_prediction(args: PredictArgs):
     """
     Construct hierarchy of models and run predictions.
     For now, hardcode L1, L2

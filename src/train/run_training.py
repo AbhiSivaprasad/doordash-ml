@@ -46,6 +46,7 @@ def run_training(args: TrainArgs):
                         info['name'], 
                         args.model_name, 
                         datetime.now().strftime("%Y%m%d-%H%M%S"))
+
         makedirs(save_dir)
         args.save(join(save_dir, "args.json"), skip_unpicklable=True)
 
