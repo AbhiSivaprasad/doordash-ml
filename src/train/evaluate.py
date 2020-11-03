@@ -12,14 +12,15 @@ def evaluate_predictions(preds: np.array,
     return (preds == targets).sum() / len(targets)
 
 
-def evaluate_batch_predictions(preds: List[Tuple[int]], targets: List[Tuple[int]], num_l1_classes: int):
-    """Compute accuracy given predictions and targets
-    
-    :param preds: List of Tuples with predicted class ids. Format: [(L1, L2), (L1, L2), ...]
+def evaluate_batch_predictions(preds: np.ndarray, targets: np.ndarray, num_l1_classes: int):
     """
-    preds = np.array(preds)
-    targets = np.array(targets)
-
+    Compute accuracy given predictions and targets
+    
+    :param preds: 2-d numpy array predicted class ids. 
+                  preds[:, 0] contains L1 preds and preds[:, 1] contains L2 preds
+    :param targets: 2-d numpy array target class ids. 
+                    targets[:, 0] contains L1 target and targets[:, 1] contains L2 target
+    """
     scores = preds == targets
 
     # L1 accuracy and Overall accuracy

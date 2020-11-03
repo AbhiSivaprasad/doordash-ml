@@ -37,6 +37,9 @@ def batch_predict_greedy(l1_model: nn.Module,
     l1_model.to(device)
     l1_preds, l1_probs = predict(l1_model, data_loader, device, return_probs=True)
 
+    # find probability of predicted class as confidence score
+    l1_probs = torch.max(l1_probs, dim=1)[0].cpu().numpy()
+
     # track L2 predictions and probabilities
     l2_preds = np.zeros(len(l1_preds), dtype=int)
     l2_probs = np.zeros(len(l1_preds))
@@ -46,6 +49,9 @@ def batch_predict_greedy(l1_model: nn.Module,
         model.to(device)
 
         l2_class_preds, l2_class_probs = predict(model, data_loader, device, return_probs=True)
+
+        # find probability of predicted class as confidence score
+        l2_class_probs = torch.max(l2_class_probs, dim=1)[0].cpu().numpy()
 
         # select only data predicted as current category
         mask = (l1_preds == l1_class_id)

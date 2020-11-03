@@ -77,12 +77,7 @@ class TrainArgs(CommonArgs):
 
     def process_args(self) -> None:
         super(TrainArgs, self).process_args()
-
-        # index save_dir by model name and timestamp
-        self.save_dir = os.path.join(self.save_dir, 
-                                     self.model_name)
-                                     # datetime.now().strftime("%Y%m%d-%H%M%S"))
-        
+       
         # validate 
         self.validate_split_sizes()
         self.validate_categories()
