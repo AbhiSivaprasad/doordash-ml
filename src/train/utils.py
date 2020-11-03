@@ -27,8 +27,8 @@ def save_checkpoint(model: nn.Module,
 def load_checkpoint(dir_path: str):
     """Load model saved in directory dir_path"""
     return (AutoModelForSequenceClassification.from_pretrained(dir_path), 
-            #DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
-            AutoTokenizer.from_pretrained(dir_path))
+            DistilBertTokenizer.from_pretrained('distilbert-base-cased'))
+            #AutoTokenizer.from_pretrained(dir_path))
 
 
 def save_validation_metrics(dir_path: str, accuracy: float, loss: float):
@@ -59,12 +59,12 @@ def load_best_model(path: str):
                           for filename in [f for f in filenames if f.endswith(".val")]]
 
     # iterate through paths and track best model
-    best_acc = 0
+    best_loss = None
     best_path = None
     for dir_path in model_results_dirs:
-        acc = read_validation_metrics(dir_path)
-        if acc > best_acc:
-            best_acc = acc
+        _, loss = read_validation_metrics(dir_path)
+        if best_loss is None or loss < best_loss:
+            best_loss = loss
             best_path = dir_path
 
     # read model in same directory
@@ -77,10 +77,10 @@ def load_best_model(path: str):
 
 def set_seed(seed: int):
     """set seed for reproducibility"""
-    random.seed(seed) 
+    random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed) 
-    if torch.cuda.device_count() > 0: 
+    torch.manual_seed(seed)
+    if torch.cuda.device_count() > 0:
         torch.cuda.manual_seed_all(seed)
 
 

@@ -88,5 +88,7 @@ def run_predictions(args: PredictArgs):
         'Right precision': precisions[:, 1], 
         'Confidence': l2_confidence_scores, 
         'L1 Confidence': l1_confidence_scores,
+        'L1_target': test_data.data["L1"],
+        'L2_target': test_data.data["L2"],
     }), preds], axis=1)
     results.to_csv(join(args.save_dir, "results.csv"), index=False)
