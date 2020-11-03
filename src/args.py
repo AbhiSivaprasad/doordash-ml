@@ -82,13 +82,10 @@ class TrainArgs(CommonArgs):
         self.validate_split_sizes()
         self.validate_categories()
 
-
-class PredictArgs(CommonArgs):
+class CommonPredictArgs(CommonArgs):
     save_dir: str = "logs/preds"
     """Directly to save log outputs, model, and results"""
-    taxonomy_dir: str
-    """Path to directory with taxonomy"""
-    models_path: str
+    models_dir: str
     """Path to root models directory. There should be a subdirectory structure according to taxonomy
     e.g. subdirs are named L1 categories"""
     test_path: str
@@ -97,5 +94,14 @@ class PredictArgs(CommonArgs):
     """Max sequence length for BERT models. Longer inputs are truncated"""
     batch_size: int = 32
     """Batch size during model prediction"""
+ 
+class PredictArgs(CommonPredictArgs):
+    autoload_best_model: bool = True
+    """Recursively sweep models_dir for the model with highest validation score
+    if False then models_dir must directly contain the model"""
+
+class BatchPredictArgs(CommonPredictArgs):
+    taxonomy_dir: str
+    """Path to directory with taxonomy"""
     strategy: str = "greedy"
     """Strategy to merge L1, L2 predictions. Options: greedy, complete"""

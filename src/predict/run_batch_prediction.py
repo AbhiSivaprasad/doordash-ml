@@ -10,14 +10,14 @@ from .utils import load_best_model, DefaultLogger, load_checkpoint
 from .batch_predict import batch_predict
 from .predict import predict
 from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
-from ..args import PredictArgs
+from ..args import BatchPredictArgs
 from ..data.bert import BertDataset
 from ..data.taxonomy import Taxonomy
 
 from transformers import DistilBertTokenizer
 
 
-def run_batch_prediction(args: PredictArgs):
+def run_batch_prediction(args: BatchPredictArgs):
     """
     Construct hierarchy of models and run predictions.
     For now, hardcode L1, L2
@@ -32,7 +32,7 @@ def run_batch_prediction(args: PredictArgs):
     taxonomy = Taxonomy().read(args.taxonomy_dir)
 
     # load best models
-    l1_model, l1_tokenizer = load_best_model(join(args.models_path, "L1"))
+    l1_model, l1_tokenizer = load_best_model(join(args.models_dir, "L1"))
     l2_models_dict = {}  # key = class id, value = Model
 
     # hack to get l1 models, write an iterator when generalizing
