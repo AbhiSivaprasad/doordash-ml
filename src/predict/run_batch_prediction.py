@@ -6,7 +6,7 @@ from os.path import join, isdir
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from .utils import load_best_model, DefaultLogger, load_checkpoint
+from ..utils import load_best_model, DefaultLogger, load_checkpoint
 from .batch_predict import batch_predict
 from .predict import predict
 from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
@@ -37,11 +37,11 @@ def run_batch_prediction(args: BatchPredictArgs):
 
     # hack to get l1 models, write an iterator when generalizing
     for node in taxonomy._root.children:
-        path = join(args.models_path, node.category_name)
+        path = join(args.models_dir, node.category_name)
         if not isdir(path):
             continue
 
-        model, _ = load_best_model(join(args.models_path, node.category_name))
+        model, _ = load_best_model(join(args.models_dir, node.category_name))
         l2_models_dict[node.class_id] = model
 
     # assumes same tokenizer used on all models
@@ -55,7 +55,7 @@ def run_batch_prediction(args: BatchPredictArgs):
 
     preds, l1_confidence_scores, l2_confidence_scores = batch_predict(
         l1_model, l2_models_dict, test_dataloader, args.device, strategy=args.strategy)
-    
+
     # evaluate precision, recall with confidence scores
     confidence_ordering = l2_confidence_scores.argsort()[::-1]  
     scores = (preds == targets).all(axis=1)

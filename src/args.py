@@ -82,6 +82,7 @@ class TrainArgs(CommonArgs):
         self.validate_split_sizes()
         self.validate_categories()
 
+
 class CommonPredictArgs(CommonArgs):
     save_dir: str = "logs/preds"
     """Directly to save log outputs, model, and results"""
@@ -95,10 +96,14 @@ class CommonPredictArgs(CommonArgs):
     batch_size: int = 32
     """Batch size during model prediction"""
  
+
 class PredictArgs(CommonPredictArgs):
-    autoload_best_model: bool = True
+    autoload_best_model: bool = False
     """Recursively sweep models_dir for the model with highest validation score
     if False then models_dir must directly contain the model"""
+    target_variable: str = "L2_target"
+    """Name of target variable in test dataset"""
+
 
 class BatchPredictArgs(CommonPredictArgs):
     taxonomy_dir: str
