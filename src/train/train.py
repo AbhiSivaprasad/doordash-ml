@@ -12,12 +12,11 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 
-from .utils import DefaultLogger, set_seed, save_checkpoint
-from .evaluate import evaluate_predictions
+from ..utils import DefaultLogger, set_seed, save_checkpoint
+from ..eval.evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
-from .predict import predict
-from .evaluate import evaluate_predictions
+from ..predict.predict import predict
 
 
 def train(model: nn.Module,

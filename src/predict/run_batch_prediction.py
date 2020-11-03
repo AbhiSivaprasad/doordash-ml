@@ -9,7 +9,7 @@ from pathlib import Path
 from .utils import load_best_model, DefaultLogger, load_checkpoint
 from .batch_predict import batch_predict
 from .predict import predict
-from .evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
+from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
 from ..args import PredictArgs
 from ..data.bert import BertDataset
 from ..data.taxonomy import Taxonomy

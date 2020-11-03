@@ -9,9 +9,9 @@ from os.path import dirname, join
 from argparse import Namespace
 from transformers import PreTrainedTokenizer, AutoModelForSequenceClassification, AutoTokenizer, DistilBertTokenizer
 
-from ..models.models import get_model_class
-from ..args import TrainArgs
-from ..constants import MODEL_FILE_NAME, VAL_RESULTS_FILE_NAME, TRAINING_ARGS_FILE_NAME
+from .models.models import get_model_class
+from .args import TrainArgs
+from .constants import MODEL_FILE_NAME, VAL_RESULTS_FILE_NAME, TRAINING_ARGS_FILE_NAME
 
 
 def save_checkpoint(model: nn.Module, 

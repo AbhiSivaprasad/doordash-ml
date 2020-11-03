@@ -10,15 +10,15 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
-from .utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint
+from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint
 from ..data.data import load_data, generate_datasets
 from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
 from ..models.models import get_model
 from .train import train
-from .predict import predict
-from .evaluate import evaluate_predictions
+from ..predict.predict import predict
+from ..eval.evaluate import evaluate_predictions
 
 
 def run_training(args: TrainArgs):
