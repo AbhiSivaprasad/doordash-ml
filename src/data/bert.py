@@ -20,9 +20,9 @@ class BertDataset(Dataset):
             add_special_tokens=True,
             max_length=self.max_len,
             padding='max_length',
-            truncation=True # TODO: measure performance of truncated samples
+            # truncation=True # TODO: measure performance of truncated samples
         )
-        
+
         ids = inputs['input_ids']
         mask = inputs['attention_mask']
         

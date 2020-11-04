@@ -24,7 +24,7 @@ from ..eval.evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # create logging dir
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
-
+    
     # default logger prints
     logger = DefaultLogger()
 
@@ -45,7 +45,7 @@ def run_training(args: TrainArgs):
         save_dir = join(args.save_dir, 
                         info['name'], 
                         args.model_name, 
-                        datetime.now().strftime("%Y%m%d-%H%M%S"))
+                        args.timestamp)
 
         makedirs(save_dir)
         args.save(join(save_dir, "args.json"), skip_unpicklable=True)

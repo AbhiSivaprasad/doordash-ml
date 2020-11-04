@@ -11,6 +11,8 @@ class CommonArgs(Tap):
     """Boolean whether to use GPU when training"""
     gpu: int = 0
     """If cuda = True, specifies id of GPU to use in training"""
+    _timestamp: str = str(datetime.now().strftime("%Y%m%d-%H%M%S"))
+    """Timestampe at command run time. Set in process_args"""
 
     @property
     def device(self) -> torch.device:
@@ -19,6 +21,11 @@ class CommonArgs(Tap):
             return torch.device('cpu')
 
         return torch.device('cuda', self.gpu)
+
+    @property
+    def timestamp(self):
+        """Get timestamp at command run time"""
+        return self._timestamp
 
 
 class TrainArgs(CommonArgs):

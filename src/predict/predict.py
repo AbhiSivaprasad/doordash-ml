@@ -23,7 +23,7 @@ def predict(model: torch.nn.Module,
             mask = data['mask'].to(device, dtype=torch.long)
 
             # generate outputs
-            logits = model(ids, mask)[0]
+            logits = model(input_ids=ids, attention_mask=mask)[0]
 
             # compute probabilities
             if return_probs:

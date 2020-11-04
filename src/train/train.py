@@ -94,7 +94,7 @@ def train_epoch(model: torch.nn.Module,
         targets = data['targets'].to(device, dtype=torch.long)
         
         # predict and compute loss
-        logits = model(ids, mask)[0]
+        logits = model(input_ids=ids, attention_mask=mask)[0]
         loss = F.cross_entropy(logits, targets)
         _, preds = torch.max(logits.data, dim=1)
         

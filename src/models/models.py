@@ -1,27 +1,31 @@
 import torch
 import torch.nn as nn
 
-from transformers import DistilBertForSequenceClassification, DistilBertTokenizer, DistilBertConfig
+from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
 
 from ..args import TrainArgs
 
 
 def get_model(num_labels: int, args: TrainArgs):
-    if args.model_name == 'distilbert':
-        config = DistilBertConfig(num_labels=num_labels, 
-                                  seq_classif_dropout=args.cls_dropout, 
-                                  cls_hidden_dim=args.cls_hidden_dim)
-        tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-cased') 
-        model = DistilBertForSequenceClassification(config)
-        return model, tokenizer
-    else:
-        raise ValueError("Invalid model type:", args.model_name)
+    config = AutoConfig.from_pretrained(
+        args.model_name,
+        num_labels=num_labels,
+    )
 
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_name,
+        pad_token="[PAD]"
+    )
 
-def get_model_class(args: TrainArgs):
-    if args.model_name == 'distilbert':
-        tokenizer = DistilBertTokenizer
-        model = DistilBertForSequenceClassification
-        return model, tokenizer
-    else:
-        raise ValueError("Invalid model type:", args.model_name)
+    if args.model_name == 'gpt2-medium':
+        config.pad_token_id = tokenizer.get_vocab()["[PAD]"]
+
+    model = AutoModelForSequenceClassification.from_pretrained(
+        args.model_name,
+        config=config,
+    )
+    
+    if args.model_name == 'gpt2-medium':
+        model.resize_token_embeddings(len(tokenizer))
+
+    return model, tokenizer
