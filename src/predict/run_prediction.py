@@ -46,7 +46,5 @@ def run_prediction(args: PredictArgs):
     test_loss = F.nll_loss(torch.log(probs), 
                            torch.from_numpy(test_data.targets.values).to(args.device))
     
-    print(preds[:20])
-
     # report results
     logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
