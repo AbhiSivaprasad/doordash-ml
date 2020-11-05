@@ -57,17 +57,18 @@ def run_batch_prediction(args: BatchPredictArgs):
         l1_model, l2_models_dict, test_dataloader, args.device, strategy=args.strategy)
 
     # process predictions
-    preds = pd.DataFrame(preds, columns=["L1_preds_class", "L2_preds_class"])
-    preds["L1_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id])
-                         for l1_class_id in preds[:,0]]
-    preds["L2_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id, l2_class_id])
-                         for l1_class_id, l2_class_id in preds]
+    df_preds = pd.DataFrame()
+    df_preds["L1_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id])
+                            for l1_class_id in preds[:, 0]]
+    df_preds["L2_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id, l2_class_id])
+                            for l1_class_id, l2_class_id in preds]
 
     # aggregate and write results
     results = pd.concat([pd.DataFrame({
+        'Name': test_data.data["Name"],
         'Overall Confidence': l2_confidence_scores, 
         'L1 Confidence': l1_confidence_scores,
         'L1_target': test_data.data["L1"],
         'L2_target': test_data.data["L2"],
-    }), preds], axis=1)
+    }), df_preds], axis=1)
     results.to_csv(join(args.save_dir, "results.csv"), index=False)
