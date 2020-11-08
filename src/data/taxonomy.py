@@ -50,6 +50,10 @@ class TaxonomyNode:
         """Return whether node has a child with name category_name"""
         return any(map(lambda c: c.category_name == category_name, self.children))
 
+    @property 
+    def num_children():
+        return len(self.children)
+
 
 #TODO add validity checks
 class Taxonomy:
@@ -59,18 +63,19 @@ class Taxonomy:
                       if root is not None 
                       else TaxonomyNode(category_name="root", class_id=None))
 
-    def __str__(self):
-        # readable represenation
+    def __str__(self) -> str:
+        """readable represenation of taxonomy"""
         return json.dumps(self._readable_repr(self._root), indent=4)
 
-    def __contains__(self, category_name: str):
-        return self._find_node_by_name(self._root, category_name, [])[0] is not None
+    def __contains__(self, category_name: str) -> bool:
+        """Returns True if category name is in taxonomy else False"""
+        return self.find_node_by_name(self._root, category_name, [])[0] is not None
 
     def add(self, parent_category: str, child_category: str):
         """
         Add child node to taxonomy, child's class id is assigned as index in parent's children
         """
-        parent_node, _ = self._find_node_by_name(self._root, parent_category, [])
+        parent_node, _ = self.find_node_by_name(self._root, parent_category, [])
 
         if parent_node is None:
             raise ValueError(f"No node found with category: {parent_category}")
@@ -91,7 +96,7 @@ class Taxonomy:
 
     def remove(self, category_name: str):
         """Remove node in taxonomy with name category_name"""
-        node, path = self._find_node_by_name(self._root, category_name, [])
+        node, path = self.find_node_by_name(self._root, category_name, [])
         
         if node is None:
             raise ValueError(f"No node found with category: {category_name}")
@@ -103,7 +108,7 @@ class Taxonomy:
 
     def has_link(self, parent_category, child_category):
         """Find nodes in self which are not in other"""
-        parent_node, _ = self._find_node_by_name(self._root, parent_category, [])
+        parent_node, _ = self.find_node_by_name(self._root, parent_category, [])
 
         # could not find parent node
         if parent_node is None:
@@ -119,7 +124,7 @@ class Taxonomy:
              return [class_id(x), class_id(y), class_id(z)]
         """
         # walk through tree to find node by name (unique identifier)
-        node, node_path = self._find_node_by_name(self._root, category_name, [])
+        node, node_path = self.find_node_by_name(self._root, category_name, [])
 
         if node is None:
             raise ValueError(f"No node found with category: {category_name}")
@@ -189,10 +194,10 @@ class Taxonomy:
             for child in node.children:
                 yield from self._iter_level(child, level - 1)
 
-    def _find_node_by_name(self, 
-                           node: TaxonomyNode, 
-                           category_name: str, 
-                           node_path: List[TaxonomyNode]) -> Tuple[TaxonomyNode, List[TaxonomyNode]]:
+    def find_node_by_name(self, 
+                          node: TaxonomyNode, 
+                          category_name: str, 
+                          node_path: List[TaxonomyNode]) -> Tuple[TaxonomyNode, List[TaxonomyNode]]:
         """
         Search through taxonomy to find node with name category_name. 
 
@@ -207,7 +212,7 @@ class Taxonomy:
         # recurse through children looking for category name
         for child in node.children:
             node_path.append(child)
-            node, path = self._find_node_by_name(child, category_name, node_path)
+            node, path = self.find_node_by_name(child, category_name, node_path)
             if node is not None:
                 return node, path
             node_path.pop()
