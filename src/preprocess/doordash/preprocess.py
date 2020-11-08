@@ -5,18 +5,34 @@ import pandas as pd
 
 from typing import Dict
 from tqdm import tqdm
+from os.path import join
+from tap import Tap
 
 from src.data.taxonomy import Taxonomy
 
 
-def preprocess(read_path: str, 
-               train_size: float, 
-               write_train_path: str, 
-               write_test_path: str, 
-               raw_taxonomy_read_path: str,
-               taxonomy_write_dir: str):
-    run = wandb.init(project="doordash-test", job_type="preprocessing")
-    run.use_artifact("raw-dataset:latest")
+class PreprocessArgs(Tap):
+    write_dir: str = "data/doordash/processed"
+    """Path to dir to write processed dataset files"""
+    train_size: float = 0.9
+    """Size of train dataset as a proportion of total dataset"""
+
+    # W&B args
+    upload_wandb: bool = False
+    """Upload processed dataset to W&B"""
+    project: str = "doordash"
+    """Name of project in W&B"""
+    artifact_download_dir: str = "data/doordash/raw"
+    """Path to directory to download raw dataset artifact"""
+    artifact_name: str = "raw-dataset:latest"
+    """Name of raw dataset artifact in W&B"""
+
+
+def preprocess(args: PreprocessArgs):
+    run = wandb.init(project=args.project, job_type="preprocessing")
+
+    # download raw dataset to specified dir path
+    run.use_artifact(args.artifact_name).download(args.artifact_download_dir)
 
     # set seed for reproducibility
     np.random.seed(1)
@@ -24,19 +40,19 @@ def preprocess(read_path: str,
 
     # TODO: do duplicate check on names
     # read full data
-    df = pd.read_csv(read_path)
+    df = pd.read_csv(join(args.artifact_download_dir, 'data.csv'))
 
-    # filter relevant columns
+    # filter & rename columns
     df = df[['item_name', 'l1', 'l2']]
-    
-    # rename columns
     df.columns = ['Name', 'L1', 'L2']
 
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
  
     # build taxonomy
-    taxonomy = build_taxonomy(pd.read_csv(raw_taxonomy_read_path))
+    taxonomy = build_taxonomy(
+        pd.read_csv(join(args.artifact_download_dir, 'taxonomy.csv'))
+    )
     taxonomy.validate()
 
     # catch invalid class labels 
@@ -45,9 +61,6 @@ def preprocess(read_path: str,
     # remove class variables with <= 5 examples from taxonomy and data
     df = remove_small_categories(df, taxonomy, threshold=5)
     
-    # write taxonomy
-    taxonomy.write(taxonomy_write_dir)
-
     # Prepare class variable for L1 classifier
     df['L1_target'] = df['L1'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[0])
     df['L2_target'] = df['L2'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[1])
@@ -61,17 +74,21 @@ def preprocess(read_path: str,
 
     # split in train, test
     df_train, df_test = np.split(df.sample(frac=1), [
-        int(train_size * len(df)), 
+        int(args.train_size * len(df)), 
     ])
 
     # write processed data
-    df_train.to_csv(write_train_path, index=False)
-    df_test.to_csv(write_test_path, index=False)
+    df_train.to_csv(join(args.write_dir, "train.csv"), index=False)
+    df_test.to_csv(join(args.write_dir, "test.csv"), index=False)
 
-    artifact = wandb.Artifact('processed-dataset', type='dataset')
-    artifact.add_file(write_train_path)
-    artifact.add_file(write_test_path)
-    run.log_artifact(artifact)
+    # write taxonomy
+    taxonomy.write(join(args.write_dir))
+
+    # log processed dataset to W&B
+    if args.wandb:
+        artifact = wandb.Artifact('processed-dataset', type='dataset')
+        artifact.add_dir(args.write_dir)
+        run.log_artifact(artifact)
 
 
 def fix_mislabeled_categories(df):
@@ -168,9 +185,4 @@ def clean_string(string: str):
 
 
 if __name__ == "__main__":
-    preprocess("data/raw/doordash.csv", 
-               0.9,
-               "data/processed/doordash_train.csv", 
-               "data/processed/doordash_test.csv",
-               "data/raw/taxonomy.csv",
-               "data/processed/")
+    preprocess(args=PreprocessArgs().parse_args())
