@@ -2,11 +2,14 @@ import os
 import torch
 
 from datetime import datetime
+from tempfile import TemporaryDirectory
 from typing import List, Optional
 from tap import Tap
 
 
 class CommonArgs(Tap):
+    save_dir: str = None
+    """Directory to save outputs"""
     cuda: bool = True
     """Boolean whether to use GPU when training"""
     gpu: int = 0
@@ -26,11 +29,18 @@ class CommonArgs(Tap):
     def timestamp(self):
         """Get timestamp at command run time"""
         return self._timestamp
+    
+    def process_args(self):
+        super(CommonArgs, self).process_args()
+
+        # Create temporary directory as save directory if not provided
+        global temp_dir  # Prevents the temporary directory from being deleted upon function return
+        if self.save_dir is None:
+            temp_dir = TemporaryDirectory()
+            self.save_dir = temp_dir.name
 
 
 class TrainArgs(CommonArgs):
-    save_dir: str = "logs/train"
-    """Directly to save log outputs, model, and results"""
     data_path: str
     """Path to data"""
     seed: int = 0
@@ -91,8 +101,6 @@ class TrainArgs(CommonArgs):
 
 
 class CommonPredictArgs(CommonArgs):
-    save_dir: str = "logs/preds"
-    """Directly to save log outputs, model, and results"""
     models_dir: str
     """Path to root models directory. There should be a subdirectory structure according to taxonomy
     e.g. subdirs are named L1 categories"""
