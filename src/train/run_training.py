@@ -1,4 +1,5 @@
 import os, csv
+import wandb
 import torch
 import pandas as pd
 import torch.nn.functional as F
@@ -24,6 +25,7 @@ from ..eval.evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # create logging dir
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
+    wandb.init(project="doordash")
     
     # default logger prints
     logger = DefaultLogger()

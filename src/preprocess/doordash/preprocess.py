@@ -1,3 +1,4 @@
+import wandb
 import random
 import numpy as np
 import pandas as pd
@@ -14,9 +15,12 @@ def preprocess(read_path: str,
                write_test_path: str, 
                raw_taxonomy_read_path: str,
                taxonomy_write_dir: str):
+    run = wandb.init(project="doordash-test", job_type="preprocessing")
+    run.use_artifact("raw-dataset:latest")
+
     # set seed for reproducibility
-    np.random.seed(0)
-    random.seed(0)
+    np.random.seed(1)
+    random.seed(1)
 
     # TODO: do duplicate check on names
     # read full data
@@ -63,6 +67,12 @@ def preprocess(read_path: str,
     # write processed data
     df_train.to_csv(write_train_path, index=False)
     df_test.to_csv(write_test_path, index=False)
+
+    artifact = wandb.Artifact('processed-dataset', type='dataset')
+    artifact.add_file(write_train_path)
+    artifact.add_file(write_test_path)
+    run.log_artifact(artifact)
+
 
 def fix_mislabeled_categories(df):
     # Baby & Child has been mislabeled as Baby
@@ -122,6 +132,7 @@ def remove_small_categories(df, taxonomy, threshold: int):
             df = df[(df['L2'] != category)]
 
     return df
+
 
 def build_taxonomy(df):
     # TODO: sort alphabetically
