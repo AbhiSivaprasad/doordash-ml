@@ -79,7 +79,7 @@ def run_training(args: TrainArgs):
         model, tokenizer = get_model(num_classes, args)
 
         # tracks model properties in W&B
-        wandb.watch(model)  
+        wandb.watch(model, log="all", log_freq=25)  
         model.to(args.device)
 
         # pass in targets to dataset
@@ -117,6 +117,7 @@ def run_training(args: TrainArgs):
         # Track model and results
         upload_checkpoint(run, category_name, model_dir)
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
+        del wandb.summary["learning rate"]  # will be in config
         wandb.summary.update({
             "test loss": test_loss,
             "test accuracy": test_acc,
