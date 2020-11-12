@@ -1,6 +1,7 @@
 import os
 import random
 import torch
+import wandb
 import numpy as np
 import torch.nn as nn
 
@@ -29,6 +30,44 @@ def load_checkpoint(dir_path: str):
             AutoTokenizer.from_pretrained(dir_path, do_lower_case=False))
 
 
+def upload_checkpoint(run, category_name: str, dir_path: str):
+    """Save checkpoint to W&B"""
+    # save model & tokenizer as artifact
+    artifact = wandb.Artifact(f'{category_name}-model', type='model')
+    artifact.add_dir(dir_path)
+    run.log_artifact(artifact)
+
+
+def load_best_model(models_dir: str, wandb_api, args: TrainArgs):
+    """ 
+    From W&B load the best model for the given model type
+    """
+    runs = api.runs(path=args.project, filters={
+        "config.model_name": args.model_name, 
+        "config.category_name": args.category_name,
+        "order": "+summary_metrics.loss"
+    })
+
+    # get first run
+
+
+    # model should be the only logged artifact
+    run.logged_artifacts
+
+    return load_checkpoint(models_dir) 
+
+
+def is_best_model(dir_path):
+    """
+    Load best model of same type and best overall model.
+    If trained model is better than either then 
+    """
+    run.use_artifact(artifact_name).download(models_dir)
+
+    current_best_model = load_model(category_name)
+    # if model better than current best:
+
+
 def save_validation_metrics(dir_path: str, accuracy: float, loss: float):
     """Save all validation metrics in a file in dir_path"""
     with open(join(dir_path, VAL_RESULTS_FILE_NAME), "w") as f:
@@ -44,35 +83,7 @@ def read_validation_metrics(dir_path: str) -> float:
 
     return float(accuracy), float(loss)
 
-
-def load_best_model(path: str):
-    """ 
-    Find all *.val in subdirectories, they contain validation accuracy of the model in same dir 
-    Then load the model the best performing model
-
-    :param path: path of root directory to search for models
-    """
-    model_results_dirs = [dirpath
-                          for dirpath, dirnames, filenames in walk(path) 
-                          for filename in [f for f in filenames if f.endswith(".val")]]
-
-    # iterate through paths and track best model
-    best_loss = None
-    best_path = None
-    for dir_path in model_results_dirs:
-        _, loss = read_validation_metrics(dir_path)
-        if best_loss is None or loss < best_loss:
-            best_loss = loss
-            best_path = dir_path
-
-    # read model in same directory
-    if best_path is not None:
-        # read model from best_path dir
-        return load_checkpoint(best_path) 
-    else:
-        raise Exception("No model results found")
-
-
+  
 def set_seed(seed: int):
     """set seed for reproducibility"""
     random.seed(seed)
