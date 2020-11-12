@@ -85,7 +85,7 @@ def preprocess(args: PreprocessArgs):
     taxonomy.write(join(args.write_dir))
 
     # log processed dataset to W&B
-    if args.wandb:
+    if args.upload_wandb:
         artifact = wandb.Artifact('processed-dataset', type='dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
@@ -169,18 +169,11 @@ def build_taxonomy(df):
     return taxonomy
 
 
-# encode target variable
-def encode_target(target: str, class_name_to_id: Dict[str, int]):
-    if target not in class_name_to_id.keys():
-        class_name_to_id[target] = len(class_name_to_id)
-
-    return class_name_to_id[target]
-
-
 # clean data
 def clean_string(string: str):
     string = " ".join(string.split())  # standardize whitespace
     string = string.rstrip().lstrip()  # strip left/right whitespace
+    string = string.lower()
     return string
 
 

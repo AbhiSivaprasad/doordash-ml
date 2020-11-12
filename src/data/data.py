@@ -62,7 +62,7 @@ def split_data(data: pd.DataFrame, args: TrainArgs) -> List[pd.DataFrame]:
     data_size = len(data)
     data_splits = np.split(data.sample(frac=1), [
         int(args.train_size * data_size), 
-        int((args.train_size + args.val_size) * data_size)
+        int((args.train_size + args.valid_size) * data_size)
     ])
     
     for data_split in data_splits:
