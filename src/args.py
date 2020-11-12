@@ -59,9 +59,19 @@ class TrainArgs(CommonArgs):
     """Size of test split"""
     separate_test_path: str = None
     """Use separate path as test set, test_size will be added to train_size"""
+    taxonomy_path: str
+    """Path to taxonomy mapping categories to class ids"""
     categories: List[str] = ["L1"]
     """List of category names to build classifiers for. 'L1' signifes L1 classifier. 
     'L2' signifies all L2 classifiers."""
+
+    # W & B args
+    wandb_project: str = "doordash"
+    """Name of W&B project"""
+    data_artifact_name: str = "processed-dataset:latest"
+    """Artifact name for processed dataset"""
+    data_filename: str = "train.csv"
+    """File name of train data in dataset artifact"""
 
     # Model args
     model_name: str
