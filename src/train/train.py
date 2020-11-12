@@ -1,4 +1,5 @@
 import os
+import wandb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -48,7 +49,7 @@ def train(model: nn.Module,
         logger.debug("Epoch:", epoch)
 
         # train for an epoch
-        train_epoch(model, train_dataloader, optimizer, loss_fn, device, logger)
+        train_epoch(model, train_dataloader, optimizer, loss_fn, args.lr, device, logger)
 
         # test on validation set after each epoch
         valid_preds, valid_probs = predict(model, valid_dataloader, device, return_probs=True)
@@ -78,6 +79,7 @@ def train_epoch(model: torch.nn.Module,
                 data_loader: DataLoader, 
                 optimizer: Optimizer,
                 loss_fn: Callable,
+                learning_rate: float,
                 device: torch.device,
                 logger: Logger):
     """
@@ -87,7 +89,6 @@ def train_epoch(model: torch.nn.Module,
     """
     # use custom logger for training
     model.train()
-    iter_count = total_loss = total_correct = total_steps = 0
     for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader)):
         ids = data['ids'].to(device, dtype=torch.long)
         mask = data['mask'].to(device, dtype=torch.long)
@@ -97,28 +98,15 @@ def train_epoch(model: torch.nn.Module,
         logits = model(input_ids=ids, attention_mask=mask)[0]
         loss = F.cross_entropy(logits, targets)
         _, preds = torch.max(logits.data, dim=1)
-        
-        # track loss/acc
-        total_correct += (preds==targets).sum().item()
-        total_loss += loss.item()
-        total_steps += targets.size(0)
-        if batch_iter % 100 == 0:
-            logger.debug((f"Iter: {iter_count}, "
-                          f"Loss: {loss.item() / total_steps}, "
-                          f"Accuracy: {(total_correct * 100) / total_steps}"))
-            
-            # reset stats
-            total_loss = total_correct = total_steps = 0
-            
+          
+        # log to W&B, autotracks iter
+        wandb.log({
+            "loss": loss.item(),
+            "accuracy": (preds==targets).sum().item() / targets.size(0),
+            "learning rate": learning_rate
+        })
+ 
         # backprop
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
-        # track iterations across batches
-        iter_count += targets.size(0)
-
-    return iter_count
-
-
-

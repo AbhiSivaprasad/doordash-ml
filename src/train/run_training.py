@@ -11,8 +11,9 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
-from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint
-from ..data.data import load_data, generate_datasets
+from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
+from ..data.data import split_data, generate_datasets
+from ..data.taxonomy import Taxonomy
 from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
@@ -25,35 +26,60 @@ from ..eval.evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # create logging dir
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
-    wandb.init(project="doordash")
+
+    # set seed for reproducibility
+    set_seed(args.seed)
+    
+    # initialize W & B api 
+    wandb_api = wandb.Api({
+        "project": args.wandb_project,
+    })
+
+    # download dataset to specified dir path
+    wandb_api.artifact(args.data_artifact_name).download(args.save_dir)
+    data = pd.read_csv(join(args.save_dir, args.data_filename))
     
     # default logger prints
     logger = DefaultLogger()
 
+    # taxonomy to map between category names and class ids
+    taxonomy = Taxonomy().read(args.taxonomy_path)
+
     # read full dataset and create data splits before splitting by category
-    train_data, valid_data, test_data = load_data(args)
+    train_data, valid_data, test_data = split_data(data, args)
     
     # For each category generate train, valid, test
     datasets = generate_datasets(train_data, valid_data, test_data, args.categories)
 
     # For each dataset, create dataloaders and run training
-    all_results = []  # tuples (model name, test accuracy)
-    for dataset in datasets:
-        # TODO: convert info to object
-        info, data_splits = dataset
-        logger.debug("Training Model for Category:", info['name'])
+    for category_name, data_splits in datasets:
+        logger.debug("Training Model for Category:", category_name)
+    
+        model_dir = join(args.save_dir, category_name, "model")
+        Path(model_dir).mkdir(parents=True, exist_ok=True)
 
-        # create subdirectory for saving current model's outputs
-        save_dir = join(args.save_dir, 
-                        info['name'], 
-                        args.model_name, 
-                        args.timestamp)
+        # initialize W&B run
+        wandb_config = {
+            "train_dataset_size": len(data_splits[0]),
+            "num_epochs": args.epochs,
+            "batch_size": args.train_batch_size,
+            "model_name": args.model_name,
+            "patience": args.patience,
+            "max_seq_length": args.max_seq_length,
+            "cls_dropout": args.cls_dropout,
+            "cls_hidden_dim": args.cls_hidden_dim
+        }
+        run = wandb.init(project=args.wandb_project, job_type="training", config=wandb_config, reinit=True)
 
-        makedirs(save_dir)
-        args.save(join(save_dir, "args.json"), skip_unpicklable=True)
+        # mark dataset artifact as input to run
+        run.use_artifact(args.data_artifact_name)
 
         # build model based on # of target classes
-        model, tokenizer = get_model(info['n_classes'], args)
+        num_classes = taxonomy.find_node_by_name(category_name)[0].num_children
+        model, tokenizer = get_model(num_classes, args)
+
+        # tracks model properties in W&B
+        wandb.watch(model)  
         model.to(args.device)
 
         # pass in targets to dataset
@@ -73,11 +99,11 @@ def run_training(args: TrainArgs):
               valid_dataloader=valid_dataloader, 
               valid_targets=torch.from_numpy(valid_data.targets.values).to(args.device), 
               args=args, 
-              save_dir=save_dir, 
+              save_dir=model_dir, 
               device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model, tokenizer = load_checkpoint(save_dir)
+        model, tokenizer = load_checkpoint(model_dir)
 
         # move model
         model.to(args.device)
@@ -88,18 +114,13 @@ def run_training(args: TrainArgs):
         test_loss = F.nll_loss(torch.log(probs), 
                                torch.from_numpy(test_data.targets.values).to(args.device))
 
-        # test set in training serves as performance validation
-        save_validation_metrics(save_dir, test_acc, test_loss)
-
-        # Track results
-        all_results.append((info['name'], test_acc))
+        # Track model and results
+        upload_checkpoint(run, category_name, model_dir)
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
+        wandb.summary.update({
+            "test loss": test_loss,
+            "test accuracy": test_acc,
+        })
 
-    # Write results
-    with open(os.path.join(save_dir, RESULTS_FILE_NAME), 'w+') as f:
-        writer = csv.writer(f)
-        headers, values = zip(*all_results)
-
-        # write results
-        writer.writerow(headers)
-        writer.writerow(values)
+        # close W & B logging for run
+        run.finish()
