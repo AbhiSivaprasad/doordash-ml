@@ -165,10 +165,10 @@ class Taxonomy:
         # read taxonomy from dir
         taxonomy = Taxonomy()
         with open(join(dir_path, "taxonomy.csv"), 'r') as f:
-            csv_reader = csv.DictReader(f)
+            reader = csv.DictReader(f)
 
             # parse each row
-            for row in csv_reader:
+            for row in reader:
                 # compute depth of row
                 depth = 1
                 while f"L{depth}" in row and row[f"L{depth}"] != "":
@@ -176,10 +176,10 @@ class Taxonomy:
                 depth -= 1
 
                 # extract node information 
-                parent_id = row[f"L{depth - 1} Category ID"]
-                category_id = row[f"L{depth} Category ID"]
+                parent_id = int(row[f"L{depth - 1} Category ID"])
+                category_id = int(row[f"L{depth} Category ID"])
                 category_name = row[f"L{depth}"]
-                class_id = row["Class ID"] if "Class ID" in row else None
+                class_id = int(row["Class ID"]) if "Class ID" in row else None
 
                 # add node to taxonomy
                 taxonomy.add(parent_id, category_id, category_name, class_id)
@@ -191,21 +191,28 @@ class Taxonomy:
         """Write a human readable representation of taxonomy to a file in specified dir"""
         # write to a specific file name in dir
         with open(join(dir_path, "taxonomy.csv"), 'w') as f:
-            # compute max depth
+            # get max level (e.g. if no L3 categories return 2)
             max_level = self.get_max_level()
 
+            # category names, category ids, class id
             header = [f"L{x}" for x in range(max_level)] 
                 + [f"L{x} Category ID" for x in range(max_level)] 
-                + ["Category ID", "Class ID"]
+                + ["Class ID"]
 
-            csv_writer = csv.DictWriter(f, fieldnames=header)
-
-            # header L1, ..., Lx, Category ID, Class ID
-            csv_writer.writerow( + ["Category ID", "Class ID"])
+            writer = csv.DictWriter(f, fieldnames=header)
             
             # write each path from root to node
-            for names, ids, category_id, class_id in self._repr():
-                csv_writer.writerow(names + [category_id, class_id])
+            for names, ids, class_id in self._repr():
+                write_row = {}
+                for i, name in enumerate(names):
+                    write_row[f"L{i}"] = name
+
+                for i, category_id in enumerate(ids):
+                    write_row[f"L{i} Category ID"] = category_id
+
+                write_row["Class ID"] = class_id
+
+                writer.writerow(write_row)
 
     def _iter(self, node: TaxonomyNode, path: List[TaxonomyNode]):
         """Iterate recursively and output all nodes in tree except root"""
@@ -224,11 +231,11 @@ class Taxonomy:
             for child in node.children:
                 yield from self._iter_level(child, level - 1)
 
-    def _repr() -> List[Tuple[List[str], Tuple[List[str]] int, int]]:
+    def _repr() -> List[Tuple[List[str], Tuple[List[str]], int]]:
         """
         Return a representation of the taxonomy with one entry per node.
         Each entry is a list of names from root to node (excluding root), 
-            a list of ids from root to node, id of the category, and class id.
+            a list of ids from root to node, and class id.
         """
         rows = []
         for node, path in self.iter():
@@ -237,6 +244,6 @@ class Taxonomy:
             ids = [n.category_id for n in (path[1:] + [node])]
 
             # add Lx category id
-            rows.append((names, ids, node.category_id, node.class_id))
+            rows.append((names, ids, node.class_id))
 
         return rows
