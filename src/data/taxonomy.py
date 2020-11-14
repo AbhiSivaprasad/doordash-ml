@@ -86,7 +86,7 @@ class TaxonomyNode:
 
     @property
     def vendor_id(self):
-        return self._class_id
+        return self._vendor_id
 
     @property
     def children(self):
@@ -102,7 +102,7 @@ class Taxonomy:
         # create generic root node if not passed, with id 0
         self._root = (root 
                       if root is not None 
-                      else TaxonomyNode(category_id=0, category_name="root"))
+                      else TaxonomyNode(category_id=0, category_name="Root"))
 
     def __str__(self) -> str:
         """readable represenation of taxonomy"""
@@ -190,12 +190,23 @@ class Taxonomy:
 
     def from_df(self, df: pd.DataFrame) -> 'Taxonomy':
         """Read df into native data structure"""
-        taxonomy = Taxonomy()
+        # Sort by category names
+        level = 1
+        while f"L{level}" in df.columns:
+            level += 1
+        level_headers = [f"L{x}" for x in range(level)]
 
-        # sort taxonomy entries by number of NaNs so ordering: L1, L2, ..., Lx categories
-        # ensures that children are processed after parent
-        df = df.iloc[df.isnull().sum(1).sort_values(ascending=False).index]
-        
+        # Ensures children will be processed after parent
+        df = df.sort_values(by=level_headers, 
+                            ascending=[True] * len(level_headers),
+                            na_position="first")
+       
+        # all values in L0 columns should be the same
+        root = TaxonomyNode(category_id=df["L0 Category ID"][0], 
+                            category_name=df["L0"][0])
+
+        taxonomy = Taxonomy(root)
+
         for _, row in df.iterrows():
             depth = 1
             while f"L{depth}" in row and not pd.isnull(row[f"L{depth}"]):
@@ -203,16 +214,15 @@ class Taxonomy:
             depth -= 1
 
             # extract node information 
-            parent_id = (int(row[f"L{depth - 1} Category ID"]) 
-                         if depth > 1 
-                         else taxonomy._root.category_id)
+            # extract node information 
+            parent_id = int(row[f"L{depth - 1} Category ID"])
             category_id = int(row[f"L{depth} Category ID"])
             category_name = row[f"L{depth}"]
             class_id = int(row["Class ID"]) if "Class ID" in row else None
             vendor_id = int(row[f"Vendor ID"])
 
             # add node to taxonomy
-            taxonomy.add(parent_id, category_id, category_name, class_id)
+            taxonomy.add(parent_id, category_id, category_name, class_id, vendor_id)
 
         # parse into native data structure
         return taxonomy
@@ -225,30 +235,31 @@ class Taxonomy:
         max_level = self.get_max_level()
 
         # category names, category ids, vendor ids, class id
-        header = [f"L{x}" for x in range(1, max_level + 1)] \
-            + ["Category ID", "Parent Category ID", "Vendor ID", "Class ID"]
+        level_headers = [f"L{x}" for x in range(max_level + 1)]
+        category_level_headers = [f"L{x} Category ID" for x in range(max_level + 1)]
+        header = level_headers + category_level_headers + ["Vendor ID", "Class ID"]
 
         df = pd.DataFrame(columns=header)
         
         # write each path from root to node
-        for names, category_id, parent_category_id, vendor_id, class_id in self._repr():
+        for category_names, category_ids, vendor_id, class_id in self._repr():
             row = {}
-            for i, name in enumerate(names):
-                row[f"L{i + 1}"] = name
+            for i, (category_name, category_id) in enumerate(zip(category_names, category_ids)):
+                row[f"L{i}"] = category_name
+                row[f"L{i} Category ID"] = category_id
 
-            row["Category ID"] = category_id
-            row["Parent Category ID"] = parent_category_id
             row["Vendor ID"] = vendor_id
             row["Class ID"] = class_id
 
             df = df.append(row, ignore_index=True)
 
-        # sort taxonomy entries by number of NaNs so ordering: L1, L2, ..., Lx categories
-        # better readability
-        df = df.iloc[df.isnull().sum(1).sort_values(ascending=False).index]
-        
+        # Sort by category names
+        df = df.sort_values(by=level_headers, 
+                            ascending=[True] * len(level_headers),
+                            na_position="first")
+
         # change cols auto inferred as floats to ints
-        integer_cols = ["Category ID", "Parent Category ID", "Vendor ID", "Class ID"]
+        integer_cols = category_level_headers + ["Vendor ID", "Class ID"]
         df[integer_cols] = df[integer_cols].astype(pd.Int64Dtype())
 
         # write df
@@ -275,7 +286,7 @@ class Taxonomy:
             for child in node.children:
                 yield from self._iter_level(child, level - 1)
 
-    def _repr(self) -> List[Tuple[List[str], int, int, int, int]]:
+    def _repr(self) -> List[Tuple[List[str], List[int], int, int]]:
         """
         Return a representation of the taxonomy with one entry per node.
         Each entry is a list of names from root to node (excluding root), 
@@ -283,11 +294,11 @@ class Taxonomy:
         """
         rows = []
         for node, path in self.iter():
-            # L1, ..., Lx category names
+            # L1, ..., Lx category names and ids
             names = [n.category_name for n in path]
+            ids = [n.category_id for n in path]
 
-            # get parent category id if it exists
-            parent_id = path[-2].category_id if len(path) > 1 else None
-            rows.append((names[1:], node.category_id, parent_id, node.vendor_id, node.class_id))
+            # add Lx node information
+            rows.append((names, ids, node.vendor_id, node.class_id))
 
         return rows

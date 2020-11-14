@@ -5,10 +5,13 @@ from tap import Tap
 from typing import Any, Dict
 from random import randint
 
-from src.data.taxonomy import Taxonomy
+from src.data.taxonomy import Taxonomy, TaxonomyNode
+from src.utils import set_seed
 
 
 class ProcessTaxonomyArgs(Tap):
+    seed: int = 0
+    """Seed for reproducibility"""
     raw_path: str
     """Path to raw taxonomy csv"""
     processed_path: str
@@ -16,6 +19,7 @@ class ProcessTaxonomyArgs(Tap):
 
 
 def process_taxonomy(args: ProcessTaxonomyArgs):
+    set_seed(args.seed)
     taxonomy_data = pd.read_csv(args.raw_path)
 
     # For each tuple (A, B), 
@@ -29,6 +33,11 @@ def process_taxonomy(args: ProcessTaxonomyArgs):
         taxonomy_data[new_col] = taxonomy_data[unique_col].apply(
             lambda x: encode_id(x, id_lookup)
         )
+
+    # Setup L0 category
+    kwargs = {'L0': 'Grocery', 'L0 Category ID': generate_id(8)}
+    taxonomy_data = taxonomy_data.assign(**kwargs)
+    # taxonomy_data.assign(=generate_id(8))
 
     # creating taxonomy will automatically assign class ids if they don't exist
     taxonomy = Taxonomy().from_df(taxonomy_data)
