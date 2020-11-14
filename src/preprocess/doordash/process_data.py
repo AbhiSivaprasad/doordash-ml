@@ -50,10 +50,7 @@ def preprocess(args: PreprocessArgs):
     fix_mislabeled_categories(df)
  
     # build taxonomy
-    taxonomy = build_taxonomy(
-        pd.read_csv(join(args.artifact_download_dir, 'taxonomy.csv'))
-    )
-    taxonomy.validate()
+    taxonomy = Taxonomy().read(args.artifact_download_dir)
 
     # catch invalid class labels 
     align_to_taxonomy(df, taxonomy)
@@ -149,24 +146,6 @@ def remove_small_categories(df, taxonomy, threshold: int):
             df = df[(df['L2'] != category)]
 
     return df
-
-
-def build_taxonomy(df):
-    # TODO: sort alphabetically
-    taxonomy = Taxonomy()
-    unique_categories = df[['L1', 'L2']].drop_duplicates(['L1', 'L2']).sort_values(['L1', 'L2'])
-    
-    # track seen l1 categories
-    seen_l1 = set()
-
-    # add L1, L2 categories 
-    for row in unique_categories[["L1", "L2"]].itertuples():
-        if not row.L1 in seen_l1:
-            taxonomy.add("root", row.L1)
-            seen_l1.add(row.L1)
-        taxonomy.add(row.L1, row.L2)
-
-    return taxonomy
 
 
 # clean data
