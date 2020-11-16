@@ -119,20 +119,25 @@ def fix_mislabeled_categories(df):
                         for t in df[['L1', 'L2']].itertuples()]
 
 def align_to_taxonomy(df, taxonomy):
-    #TODO: move to tree diff
-    unique_categories = df[['L1', 'L2']].drop_duplicates(['L1', 'L2'])
+    # get full list of level headers L1, ..., Lx
+    max_levels = len(df.columns)
+    level_headers = [f"L{x} Category ID" 
+                     for x in range(max_levels) 
+                     if f"L{x} Category ID" in df.columns]
 
-    # check L1 categories
-    for l1 in list(set(unique_categories["L1"])):
-        if not taxonomy.has_link("root", l1):
-            print("bad L1 category:", l1)
-            print(f"\thas L2 categories:", set(unique_categories[unique_categories['L1'] == l1]['L2']))
+    # unique L1, ..., Lx
+    unique_categories = df.drop_duplicates(level_headers)
 
-    # add L2 categories 
-    for row in unique_categories[["L1", "L2"]].itertuples():
-        if not taxonomy.has_link(row.L1, row.L2):
-            print("bad L2 Category. (L1, L2):", (row.L1, row.L2))
+    for categories in unique_categories.iterrows():
+        for i in range(len(level_headers)):
+            child_id = categories[f"L{i + 1} Category ID"]
+            parent_id = (categories[f"L{i} Category ID"] 
+                         if i > 0 
+                         else taxonomy._root.category_id)
 
+            if not taxonomy.has_link(parent_id, child_id):
+                print(f"Bad L{i + 1} Category:", categories[f"L{i + 1}"])
+                print(categories)
 
 def remove_small_categories(df, taxonomy, threshold: int):
     for node in taxonomy.iter_level(2):
