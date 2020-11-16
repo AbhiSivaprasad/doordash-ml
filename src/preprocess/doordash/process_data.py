@@ -10,6 +10,7 @@ from os.path import join
 from tap import Tap
 
 from src.data.taxonomy import Taxonomy
+from src.utils import set_seed
 
 
 class PreprocessArgs(Tap):
@@ -42,8 +43,7 @@ class PreprocessArgs(Tap):
 
 def preprocess(args: PreprocessArgs):
     # set seed for reproducibility
-    np.random.seed(1)
-    random.seed(1)
+    set_seed(1)
 
     run = wandb.init(project=args.project, job_type="preprocessing")
 
@@ -56,7 +56,7 @@ def preprocess(args: PreprocessArgs):
 
     # filter & rename columns
     df = df[['item_name', 'l1', 'l2', 'category1_tag_id', 'category2_tag_id']]
-    df.columns = ['Name', 'L1', 'L2', 'L1 Category ID', 'L2 Category ID']
+    df.columns = ['Name', 'L1', 'L2', 'L1 ID', 'L2 ID']
 
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
@@ -70,17 +70,9 @@ def preprocess(args: PreprocessArgs):
     # catch invalid class labels 
     align_to_taxonomy(df, taxonomy)
 
-    # remove class variables with <= 5 examples from taxonomy and data
-    df = remove_small_categories(df, taxonomy, threshold=5)
+    # warn categories with less than threshold examples
+    df = warn_small_categories(df, taxonomy, threshold=5)
     
-    # Prepare class variable for L1 classifier
-    df['L1_target'] = df['L1'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[0])
-    df['L2_target'] = df['L2'].apply(lambda x: taxonomy.category_name_to_class_ids(x)[1])
-
-    # convert float class ids to ints
-    df['L1_target'] = df['L1_target'].astype(int) 
-    df['L2_target'] = df['L2_target'].astype(int) 
-
     # clean item names
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
 
@@ -126,7 +118,6 @@ def fix_mislabeled_categories(df):
         ('Personal Care', 'Sun care'): ('Personal Care', 'Sun Care')
     }
 
-    # print([t for t in df[['L1', 'L2']].itertuples()])
     df[['L1', 'L2']] = [mislabeled_l1_categories_as_l2.get((t.L1, t.L2), (t.L1, t.L2)) 
                         for t in df[['L1', 'L2']].itertuples()]
 
@@ -157,17 +148,16 @@ def add_category_ids(df, taxonomy):
 def align_to_taxonomy(df, taxonomy):
     # get full list of level headers L1, ..., Lx
     max_levels = len(df.columns)
-    level_headers = [f"L{x} Category ID" 
-                     for x in range(max_levels) 
-                     if f"L{x} Category ID" in df.columns]
+    level_headers = [f"L{x}" for x in range(max_levels) 
+                     if f"L{x}" in df.columns]
 
     # unique L1, ..., Lx
     unique_categories = df.drop_duplicates(level_headers)
 
     for categories in unique_categories.iterrows():
         for i in range(len(level_headers)):
-            child_id = categories[f"L{i + 1} Category ID"]
-            parent_id = (categories[f"L{i} Category ID"] 
+            child_id = categories[f"L{i + 1} ID"]
+            parent_id = (categories[f"L{i} ID"] 
                          if i > 0 
                          else taxonomy._root.category_id)
 
@@ -176,18 +166,33 @@ def align_to_taxonomy(df, taxonomy):
                 print(categories)
 
 
-def remove_small_categories(df, taxonomy, threshold: int):
-    for node in taxonomy.iter_level(2):
-        category = node.category_name
-        size = len(df[df["L2"] == category])
+def split_dataset(df, taxonomy):
+    datasets = []
+    for node, path in taxonomy.iter(skip_leaves=True):
+        # first node in path (root) has depth 0
+        depth = len(path) - 1 
+
+        # If depth = 0 (root) then we want all L1s which is the entire dataset
+        dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
+        dataset = dataset[f"L{depth + 1}", f"L{depth + 1} ID", "Name"]
+        datasets.append((node.category_id, dataset))
+    
+    return datasets
+
+
+def warn_small_categories(df, taxonomy, threshold: int):
+    for node, path in taxonomy.iter():
+        # root node contains entire dataset, skip
+        if len(path) == 1:
+            continue
+
+        # first node in path (root) has depth 0
+        depth = len(path) - 1 
+
+        # extract dataset
+        size = len(df[df[f"L{depth} ID"] == node.category_id])
         if size <= threshold:
-            print(f"Removing L2 category {category} with {size} examples")
-            taxonomy.remove(category)
-
-            # l2 category should be unique
-            df = df[(df['L2'] != category)]
-
-    return df
+            print(f"L{depth} Category {node.category_name} has {size} examples")
 
 
 # clean data

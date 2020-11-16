@@ -144,11 +144,8 @@ class Taxonomy:
         """Returns True if category name is in taxonomy else False"""
         return self.find_node_by_name(category_name)[0] is not None
 
-    def iter(self):
-        return self._iter(self._root, [])
-
-    def iter_level(self, level: int = 1):
-        return self._iter_level(self._root, level)    
+    def iter(self, skip_leaves: bool = False):
+        return self._iter(self._root, [self._root], skip_leaves)
 
     def get_max_level(self):
         """
@@ -238,7 +235,7 @@ class Taxonomy:
                             na_position="first")
        
         # all values in L0 columns should be the same
-        root = TaxonomyNode(category_id=df["L0 Category ID"][0], 
+        root = TaxonomyNode(category_id=df["L0 ID"][0], 
                             category_name=df["L0"][0],
                             model_id=df["Model ID"][0])
 
@@ -255,8 +252,8 @@ class Taxonomy:
                 continue
 
             # extract node information 
-            parent_id = row[f"L{depth - 1} Category ID"]
-            category_id = row[f"L{depth} Category ID"]
+            parent_id = row[f"L{depth - 1} ID"]
+            category_id = row[f"L{depth} ID"]
             category_name = row[f"L{depth}"]
             model_id = row["Model ID"]
             class_id = int(row["Class ID"]) if "Class ID" in row else None
@@ -284,7 +281,7 @@ class Taxonomy:
 
         # category names, category ids, vendor ids, class id
         level_headers = [f"L{x}" for x in range(max_level + 1)]
-        category_level_headers = [f"L{x} Category ID" for x in range(max_level + 1)]
+        category_level_headers = [f"L{x} ID" for x in range(max_level + 1)]
         header = level_headers + category_level_headers + ["Vendor ID", "Class ID", "Model ID", "Type"]
 
         df = pd.DataFrame(columns=header)
@@ -294,7 +291,7 @@ class Taxonomy:
             row = {}
             for i, (category_name, category_id) in enumerate(zip(category_names, category_ids)):
                 row[f"L{i}"] = category_name
-                row[f"L{i} Category ID"] = category_id
+                row[f"L{i} ID"] = category_id
 
             row["Vendor ID"] = vendor_id
             row["Class ID"] = class_id
@@ -314,26 +311,15 @@ class Taxonomy:
         # write df
         df.to_csv(filepath, index=False)
 
-    def _iter(self, node: TaxonomyNode, path: List[TaxonomyNode]):
+    def _iter(self, node: TaxonomyNode, path: List[TaxonomyNode], skip_leaves: bool):
         """Iterate recursively and output all nodes in tree"""
-        if len(path) == 0:
-            # add root
-            path.append(node)
-
-        yield node, path
+        if not skip_leaves or len(node.children) != 0:
+            yield node, path
 
         for child in node.children:
             path.append(child)
             yield from self._iter(child, path)
             path.pop()
-
-    def _iter_level(self, node: TaxonomyNode, level: int):
-        """Iterate recursively and output all nodes at given depth"""
-        if level == 0:
-            yield node
-        else:
-            for child in node.children:
-                yield from self._iter_level(child, level - 1)
 
     def _repr(self) -> List[Tuple[List[str], List[str], str, str, str, bool]]:
         """

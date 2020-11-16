@@ -26,7 +26,7 @@ def process_taxonomy(args: ProcessTaxonomyArgs):
     # For each tuple (A, B), 
     # A is an existing column which uniquely identifies a category (vendor id or name if unique)
     # B is the name of the new column of generated IDs
-    column_mapping = [('L1', 'L1 Category ID'), ('L2', 'L2 Category ID')]
+    column_mapping = [('L1', 'L1 ID'), ('L2', 'L2 ID')]
 
     # Eventually ids will be generated from db
     for unique_col, new_col in column_mapping:
@@ -39,7 +39,7 @@ def process_taxonomy(args: ProcessTaxonomyArgs):
     taxonomy_data = pd.concat([pd.DataFrame([{}]), taxonomy_data]).reset_index(drop=True)
 
     # Setup L0 columns
-    kwargs = {'L0': 'Grocery', 'L0 Category ID': snake_case('Grocery')}
+    kwargs = {'L0': 'Grocery', 'L0 ID': snake_case('Grocery')}
     taxonomy_data = taxonomy_data.assign(**kwargs)
 
     # Model id just defaults to category id
@@ -53,7 +53,7 @@ def process_taxonomy(args: ProcessTaxonomyArgs):
             if f"L{x}" in row and not pd.isnull(row[f"L{x}"])
         ][-1] if i > 0 else 0
 
-        taxonomy_data.loc[i, "Model ID"] = row[f"L{max_level} Category ID"]
+        taxonomy_data.loc[i, "Model ID"] = row[f"L{max_level} ID"]
         taxonomy_data.loc[i, "Type"] = "Category"
 
     # creating taxonomy will automatically assign class ids if they don't exist
