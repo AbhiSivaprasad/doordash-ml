@@ -3,6 +3,7 @@ import random
 import numpy as np
 import pandas as pd
 
+from tempfile import TemporaryDirectory
 from typing import Dict
 from tqdm import tqdm
 from os.path import join
@@ -22,35 +23,49 @@ class PreprocessArgs(Tap):
     """Upload processed dataset to W&B"""
     project: str = "doordash"
     """Name of project in W&B"""
-    artifact_download_dir: str = "data/doordash/raw"
-    """Path to directory to download raw dataset artifact"""
+    download_dir: str
+    """Path to directory to download artifacts"""
     artifact_name: str = "raw-dataset:latest"
     """Name of raw dataset artifact in W&B"""
+    taxonomy_artifact_name: str = "taxonomy:latest"
+    """Name of taxonomy artifact in W&B"""
+
+    def process_args(self):
+        super(CommonArgs, self).process_args()
+
+        # Create temporary directory as save directory if not provided
+        global temp_dir  # Prevents the temporary directory from being deleted upon function return
+        if self.download_dir is None:
+            temp_dir = TemporaryDirectory()
+            self.download_dir = temp_dir.name
 
 
 def preprocess(args: PreprocessArgs):
-    run = wandb.init(project=args.project, job_type="preprocessing")
-
-    # download raw dataset to specified dir path
-    run.use_artifact(args.artifact_name).download(args.artifact_download_dir)
-
     # set seed for reproducibility
     np.random.seed(1)
     random.seed(1)
 
-    # TODO: do duplicate check on names
+    run = wandb.init(project=args.project, job_type="preprocessing")
+
+    # download raw dataset to specified dir path
+    run.use_artifact(args.artifact_name).download(args.download_dir)
+    run.use_artifact(args.taxonomy_artifact_name).download(args.download_dir)
+
     # read full data
-    df = pd.read_csv(join(args.artifact_download_dir, 'data.csv'))
+    df = pd.read_csv(join(args.download_dir, 'data.csv'))
 
     # filter & rename columns
-    df = df[['item_name', 'l1', 'l2']]
-    df.columns = ['Name', 'L1', 'L2']
+    df = df[['item_name', 'l1', 'l2', 'category1_tag_id', 'category2_tag_id']]
+    df.columns = ['Name', 'L1', 'L2', 'L1 Category ID', 'L2 Category ID']
 
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
  
     # build taxonomy
-    taxonomy = Taxonomy().read(args.artifact_download_dir)
+    taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy.csv'))
+
+    # add category ids to data with the taxonomy (match through vendor id)
+    add_category_ids(df, taxonomy) 
 
     # catch invalid class labels 
     align_to_taxonomy(df, taxonomy)
@@ -77,9 +92,6 @@ def preprocess(args: PreprocessArgs):
     # write processed data
     df_train.to_csv(join(args.write_dir, "train.csv"), index=False)
     df_test.to_csv(join(args.write_dir, "test.csv"), index=False)
-
-    # write taxonomy
-    taxonomy.write(join(args.write_dir))
 
     # log processed dataset to W&B
     if args.upload_wandb:
@@ -118,6 +130,30 @@ def fix_mislabeled_categories(df):
     df[['L1', 'L2']] = [mislabeled_l1_categories_as_l2.get((t.L1, t.L2), (t.L1, t.L2)) 
                         for t in df[['L1', 'L2']].itertuples()]
 
+
+def add_category_ids(df, taxonomy):
+    # iterate through taxonomy and build vendor id --> category id
+    vendor_id_to_category_id = {}
+    for node, path in taxonomy.iter():
+        if node.vendor_id is not None:
+            vendor_id_to_category_id[node.vendor_id] = node.category_id
+    
+    # L1, ..., Lx
+    max_levels = len(df.columns)
+    level_headers = [f"L{x}" for x in range(max_levels) 
+                     if f"L{x}" in df.columns]
+    
+    # Create L1, ..., Lx category ids
+    for level_header in level_headers:
+        # Lx --> Lx Vendor ID
+        category_id_header = f"{level_header} Vendor ID"
+
+        # convert column of vendor ids to column of category ids
+        taxonomy_data[category_id_header] = taxonomy_data[level_header].apply(
+            lambda x: vendor_id_to_category_id[x]
+        )
+
+
 def align_to_taxonomy(df, taxonomy):
     # get full list of level headers L1, ..., Lx
     max_levels = len(df.columns)
@@ -138,6 +174,7 @@ def align_to_taxonomy(df, taxonomy):
             if not taxonomy.has_link(parent_id, child_id):
                 print(f"Bad L{i + 1} Category:", categories[f"L{i + 1}"])
                 print(categories)
+
 
 def remove_small_categories(df, taxonomy, threshold: int):
     for node in taxonomy.iter_level(2):

@@ -57,7 +57,7 @@ def process_taxonomy(args: ProcessTaxonomyArgs):
         taxonomy_data.loc[i, "Type"] = "Category"
 
     # creating taxonomy will automatically assign class ids if they don't exist
-    taxonomy = Taxonomy().from_df(taxonomy_data)
+    taxonomy = Taxonomy.from_df(taxonomy_data)
     taxonomy.to_csv(args.processed_path)
 
 

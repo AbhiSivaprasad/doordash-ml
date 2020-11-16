@@ -219,11 +219,13 @@ class Taxonomy:
 
         return None, None
 
+    @classmethod
     def from_csv(self, filepath: str) -> 'Taxonomy':
         """Read csv into native data structure"""
         # read taxonomy from dir
-        return self.from_df(pd.from_csv(filepath))
+        return Taxonomy.from_df(pd.from_csv(filepath))
 
+    @classmethod
     def from_df(self, df: pd.DataFrame) -> 'Taxonomy':
         """Read df into native data structure"""
         # Sort by category names
