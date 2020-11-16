@@ -76,10 +76,14 @@ def preprocess(args: PreprocessArgs):
     # clean item names
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
 
+    import sys
+    sys.exit(1)
+
     # split in train, test
     df_train, df_test = np.split(df.sample(frac=1), [
         int(args.train_size * len(df)), 
     ])
+
 
     # write processed data
     df_train.to_csv(join(args.write_dir, "train.csv"), index=False)
