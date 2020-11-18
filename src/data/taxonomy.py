@@ -22,18 +22,13 @@ class TaxonomyNode:
     def __init__(self, 
                  category_id: str,
                  category_name: str, 
-                 class_id: Optional[int] = None, 
                  vendor_id: Optional[str] = None,
                  model_id: Optional[str] = None,
                  group: bool = False,
                  parent: 'TaxonomyNode' = None,
                  children: List['TaxonomyNode'] = None):
-        """
-        :param class_id: Class id for category, None for root
-        """
         self._category_id = category_id
         self._category_name = category_name
-        self._class_id = class_id
         self._vendor_id = vendor_id
         self._model_id = model_id
         self._group = group
@@ -43,21 +38,17 @@ class TaxonomyNode:
     def add_child(self, 
                   category_id: str, 
                   category_name: str, 
-                  class_id: Optional[int] = None, 
                   vendor_id: Optional[str] = None,
                   model_id: Optional[str] = None,
                   group: bool = False):
         """
         Add child node to taxonomy node with name category_name
-
-        Class id is auto-assigned as new index in self.children if not passed
         """
         if group and model_id:
             raise ValueError("If node is a group, there is no associated model")
 
         child = TaxonomyNode(category_id=category_id,
                              category_name=category_name,
-                             class_id=class_id if class_id is not None else len(self.children),
                              vendor_id=vendor_id,
                              model_id=model_id,
                              group=group,
@@ -70,8 +61,6 @@ class TaxonomyNode:
     def remove_child(self, category_id: str):
         """
         Remove child node from taxonomy with id category_id
-
-        Class ids of children will be shifted to stay consecutive
         """
         matches = [i for i, _ in enumerate(self._children) 
                    if c._category_id == category_id]
@@ -86,12 +75,6 @@ class TaxonomyNode:
         index = matches[0]
         del self.children[index]
 
-        # if node is not a a group, it has class indices
-        # shift class indices to keep them consistent
-        if not self.group:
-            for i in range(index, len(self.children)):
-                self.children[i].class_id -= 1
-
     def has_child(self, category_id: str) -> bool:
         """Return whether node has a child with id category_id"""
         return any(map(lambda c: c.category_id == category_id, self._children))
@@ -103,10 +86,6 @@ class TaxonomyNode:
     @property
     def category_name(self):
         return self._category_name
-
-    @property
-    def class_id(self):
-        return self._class_id
 
     @property
     def vendor_id(self):
@@ -164,12 +143,11 @@ class Taxonomy:
             parent_category_id: str, 
             category_id: str, 
             category_name: str, 
-            class_id: Optional[int] = None, 
             vendor_id: Optional[str] = None,
             model_id: Optional[str] = None,
             group: bool = False):
         """
-        Add child node to taxonomy, child's class id is assigned as index in parent's children
+        Add child node to taxonomy
         """
         parent_node, _ = self.find_node_by_id(parent_category_id)
 
@@ -178,7 +156,7 @@ class Taxonomy:
 
         # create child node and add to parent
         child_node = parent_node.add_child(
-            category_id, category_name, class_id, vendor_id, model_id, group)
+            category_id, category_name, vendor_id, model_id, group)
 
         return child_node
 
@@ -256,7 +234,6 @@ class Taxonomy:
             category_id = row[f"L{depth} ID"]
             category_name = row[f"L{depth}"]
             model_id = row["Model ID"]
-            class_id = int(row["Class ID"]) if "Class ID" in row else None
             vendor_id = int(row["Vendor ID"])
             group = row["Type"].lower() == "group"
 
@@ -264,7 +241,6 @@ class Taxonomy:
             taxonomy.add(parent_category_id=parent_id, 
                          category_id=category_id, 
                          category_name=category_name, 
-                         class_id=class_id, 
                          vendor_id=vendor_id, 
                          model_id=model_id, 
                          group=group)
@@ -279,22 +255,21 @@ class Taxonomy:
         # get max level (e.g. if no L3 categories return 2)
         max_level = self.get_max_level()
 
-        # category names, category ids, vendor ids, class id
+        # category names, category ids, vendor ids
         level_headers = [f"L{x}" for x in range(max_level + 1)]
         category_level_headers = [f"L{x} ID" for x in range(max_level + 1)]
-        header = level_headers + category_level_headers + ["Vendor ID", "Class ID", "Model ID", "Type"]
+        header = level_headers + category_level_headers + ["Vendor ID", "Model ID", "Type"]
 
         df = pd.DataFrame(columns=header)
         
         # write each path from root to node
-        for category_names, category_ids, vendor_id, class_id, model_id, group in self._repr():
+        for category_names, category_ids, vendor_id, model_id, group in self._repr():
             row = {}
             for i, (category_name, category_id) in enumerate(zip(category_names, category_ids)):
                 row[f"L{i}"] = category_name
                 row[f"L{i} ID"] = category_id
 
             row["Vendor ID"] = vendor_id
-            row["Class ID"] = class_id
             row["Model ID"] = model_id
             row["Type"] = "Group Category" if group else "Category"
 
@@ -304,9 +279,6 @@ class Taxonomy:
         df = df.sort_values(by=level_headers, 
                             ascending=[True] * len(level_headers),
                             na_position="first")
-
-        # change cols auto inferred as floats to ints
-        df["Class ID"] = df["Class ID"].astype(pd.Int64Dtype())
 
         # write df
         df.to_csv(filepath, index=False)
@@ -321,11 +293,11 @@ class Taxonomy:
             yield from self._iter(child, path, skip_leaves)
             path.pop()
 
-    def _repr(self) -> List[Tuple[List[str], List[str], str, str, str, bool]]:
+    def _repr(self) -> List[Tuple[List[str], List[str], str, str, bool]]:
         """
         Return a representation of the taxonomy with one entry per node.
         Each entry is a list of names from root to node (excluding root), 
-            a list of ids from root to node, and class id.
+            a list of ids from root to node, vendor id, model id, and if node is group.
         """
         rows = []
         for node, path in self.iter():
@@ -334,6 +306,6 @@ class Taxonomy:
             ids = [n.category_id for n in path]
 
             # add Lx node information
-            rows.append((names, ids, node.vendor_id, node.class_id, node.model_id, node.group))
+            rows.append((names, ids, node.vendor_id, node.model_id, node.group))
 
         return rows

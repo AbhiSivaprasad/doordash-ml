@@ -119,7 +119,7 @@ def preprocess(args: PreprocessArgs):
 
     # log processed dataset to W&B
     if args.upload_wandb:
-        artifact = wandb.Artifact('doordash', type='dataset')
+        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
 
@@ -217,7 +217,8 @@ def split_dataset(df, taxonomy):
 
         # If depth = 0 (root) then we want all L1s which is the entire dataset
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
-        dataset = dataset[f"L{depth + 1}", f"L{depth + 1} ID", "Name"]
+        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name"]]
+        dataset.columns = ["Business", "Category Name", "Category ID", "Name"]
         datasets.append((node.category_id, dataset))
     
     return datasets
