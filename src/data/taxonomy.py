@@ -40,7 +40,7 @@ class TaxonomyNode:
                   category_name: str, 
                   vendor_id: Optional[str] = None,
                   model_id: Optional[str] = None,
-                  group: bool = False):
+                  group: bool = False) -> 'TaxonomyNode':
         """
         Add child node to taxonomy node with name category_name
         """
@@ -57,23 +57,35 @@ class TaxonomyNode:
         # add child node and return it
         self.children.append(child)
         return child
+
+    def remove(self) -> None:
+        """Remove node from taxonomy"""
+        self.parent.remove_child(self.category_id)
     
-    def remove_child(self, category_id: str):
+    def remove_child(self, category_id: str) -> None:
         """
         Remove child node from taxonomy with id category_id
         """
-        matches = [i for i, _ in enumerate(self._children) 
-                   if c._category_id == category_id]
+        index = self._get_child_index(category_id)
 
-        if len(matches) == 0:
+        if index is not None:
+            del self.children[index]
+        else:
             raise ValueError(f"Node with id {category_id} not found")
 
-        # id must be unique
-        assert len(matches) == 1
+    def get_child(self, category_id: str) -> 'TaxonomyNode' or None:
+        """Return child with category id or None if doesn't exist"""
+        index = self._get_child_index(category_id)
+        return self.children[index] if index is not None else None
 
-        # remove child
-        index = matches[0]
-        del self.children[index]
+    def _get_child_index(self, category_id: str) -> int or None:
+        matches = [i for i, _ in enumerate(self.children) 
+                   if c.category_id == category_id]
+
+        # category id is unique over children
+        assert len(matches) <= 1
+
+        return matches[0] if len(matches) == 1 else None
 
     def has_child(self, category_id: str) -> bool:
         """Return whether node has a child with id category_id"""
@@ -139,60 +151,67 @@ class Taxonomy:
         # don't count root in depth
         return max_level - 1
 
-    def add(self, 
-            parent_category_id: str, 
-            category_id: str, 
-            category_name: str, 
-            vendor_id: Optional[str] = None,
-            model_id: Optional[str] = None,
-            group: bool = False):
+    def add_path(self, 
+                 path_category_ids: List[str], 
+                 category_id: str,
+                 category_name: str, 
+                 vendor_id: Optional[str] = None,
+                 model_id: Optional[str] = None,
+                 group: bool = False):
         """
-        Add child node to taxonomy
-        """
-        parent_node, _ = self.find_node_by_id(parent_category_id)
+        Add a node to the taxonomy.
+        Category ids are not guaranteed to be a unique identifier. Instead, the full path of ids 
+            from root to node will uniquely identify the node.
 
+        :param path_category_ids: category id of nodes on path from root to new node (not including new node)
+        :param category_id: category id of new node
+        """
+        # find parent node in tree specified by path
+        parent_node, _ = self.find_node_by_path(path_category_ids)
+        
         if parent_node is None:
-            raise ValueError(f"Parent node not found with category id: {parent_category_id}")
+            return ValueError(f"Invalid path category ids:", path_category_ids)
 
-        # create child node and add to parent
-        child_node = parent_node.add_child(
-            category_id, category_name, vendor_id, model_id, group)
+        # add child
+        child_node = parent_node.add_child(category_id, category_name, vendor_id, model_id, group)
 
         return child_node
 
-    def remove(self, category_id: str) -> None:
-        """Remove node in taxonomy with id category_id"""
-        node, path = self.find_node_by_id(category_id)
+    def remove_path(self, path_category_ids: List[str]) -> None:
+        """Remove node in taxonomy with specified by a path of category ids from root to node"""
+        node, _ = self.find_node_by_path(path_category_ids)
         
         if node is None:
             raise ValueError(f"No node found with category id: {category_id}")
 
-        # if the node path has length one, the parent must be the root
-        parent_node = path[-2]
-        parent_node.remove_child(node.category_id)
-        
-    def has_link(self, parent_category_id: str, child_category_id: str) -> bool:
-        """Find nodes in self which are not in other"""
-        parent_node, _ = self.find_node_by_id(parent_category_id)
+        # node exists in tree
+        node.remove() 
 
-        # could not find parent node
-        if parent_node is None:
-            return False
+    def has_path(self, path_category_ids: List[str]) -> bool:
+        """Check if a path of categories exist from root"""
+        node, _ = self.find_node_by_path(path_category_ids)
+        return node is not None
 
-        # check if parent has specified child
-        return parent_node.has_child(child_category_id)
-
-    def find_node_by_id(self, category_id: str) -> Tuple[TaxonomyNode, List[TaxonomyNode]]:
+    def find_node_by_path(self, path_category_ids: List[str]) -> Tuple[TaxonomyNode, List[TaxonomyNode]]:
         """
-        Search through taxonomy to find node with category id category_id
+        Category ids are not guaranteed to be a unique identifier. Instead, the full path of ids 
+            from root to node will uniquely identify the node.
+
         return: Tuple (node, path) where path is the list of nodes from root to desired node.
                 Root is not included in node path 
         """
-        for node, path in self.iter():
-            if node.category_id == category_id:
-                return node, path
+        node = self._root  # track current node through path iteration
+        path = [node]      # track current path of nodes
+        for path_category_id in path_category_ids:
+            node = node.get_child(path_category_id)
 
-        return None, None
+            # path does not exist
+            if node is None:
+                return None, None
+
+            path.append(node)
+
+        return node, path
 
     @classmethod
     def from_csv(self, filepath: str) -> 'Taxonomy':
