@@ -6,16 +6,20 @@ import pandas as pd
 from tempfile import TemporaryDirectory
 from typing import Dict
 from tqdm import tqdm
+from os import makedirs
 from os.path import join
 from tap import Tap
 
+from src.api.wandb import get_latest_version_number
 from src.data.taxonomy import Taxonomy
 from src.utils import set_seed
 
 
 class PreprocessArgs(Tap):
-    write_dir: str = "data/doordash/processed"
+    write_dir: str = None
     """Path to dir to write processed dataset files"""
+    download_dir: str = None
+    """Path to directory to download artifacts"""
     train_size: float = 0.9
     """Size of train dataset as a proportion of total dataset"""
 
@@ -24,45 +28,64 @@ class PreprocessArgs(Tap):
     """Upload processed dataset to W&B"""
     project: str = "doordash"
     """Name of project in W&B"""
-    download_dir: str
-    """Path to directory to download artifacts"""
-    artifact_name: str = "raw-dataset:latest"
+    raw_dataset_artifact_identifier: str = "raw-dataset:latest"
     """Name of raw dataset artifact in W&B"""
-    taxonomy_artifact_name: str = "taxonomy:latest"
+    taxonomy_artifact_identifier: str = "taxonomy:latest"
     """Name of taxonomy artifact in W&B"""
+    processed_dataset_artifact_name: str = "doordash"
+    """Name of processed dataset artifact to create"""
 
     def process_args(self):
-        super(CommonArgs, self).process_args()
+        super(PreprocessArgs, self).process_args()
 
-        # Create temporary directory as save directory if not provided
-        global temp_dir  # Prevents the temporary directory from being deleted upon function return
+        # Prevents the temporary directory from being deleted upon function return
+        global temp_download_dir, temp_write_dir
+
+        # Create temporary directory as download directory if not provided
         if self.download_dir is None:
-            temp_dir = TemporaryDirectory()
-            self.download_dir = temp_dir.name
+            temp_download_dir = TemporaryDirectory()
+            self.download_dir = temp_download_dir.name
+
+        # Create temporary directory as write directory if not provided
+        if self.write_dir is None:
+            temp_write_dir = TemporaryDirectory()
+            self.write_dir = temp_write_dir.name
 
 
 def preprocess(args: PreprocessArgs):
     # set seed for reproducibility
     set_seed(1)
 
+    api = wandb.Api({"project": args.project})
     run = wandb.init(project=args.project, job_type="preprocessing")
 
     # download raw dataset to specified dir path
-    run.use_artifact(args.artifact_name).download(args.download_dir)
-    run.use_artifact(args.taxonomy_artifact_name).download(args.download_dir)
+    run.use_artifact(args.raw_dataset_artifact_identifier).download(args.download_dir)
+    run.use_artifact(args.taxonomy_artifact_identifier).download(args.download_dir)
 
     # read full data
     df = pd.read_csv(join(args.download_dir, 'data.csv'))
 
     # filter & rename columns
-    df = df[['item_name', 'l1', 'l2', 'category1_tag_id', 'category2_tag_id']]
-    df.columns = ['Name', 'L1', 'L2', 'L1 ID', 'L2 ID']
+    # drop vendor ids, they're unreliable. Fine because names are unique
+    df = df[['Business', 'item_name', 'l1', 'l2']]
+    df.columns = ['Business', 'Name', 'L1', 'L2']
+
+    # add data source identifier (wandb id of processed dataset)
+    current_version_number = get_latest_version_number(
+        api, artifact_name=args.processed_dataset_artifact_name)
+
+    # version alias of processed dataset about to be created assigned as source
+    new_version = (f"v{current_version_number + 1}" 
+                   if current_version_number is not None 
+                   else "v0")
+    df.assign(Source=f"{args.project}/{args.processed_dataset_artifact_name}:{new_version}")
 
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
  
     # build taxonomy
-    taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy.csv'))
+    taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy-processed.csv'))
 
     # add category ids to data with the taxonomy (match through vendor id)
     add_category_ids(df, taxonomy) 
@@ -71,33 +94,50 @@ def preprocess(args: PreprocessArgs):
     align_to_taxonomy(df, taxonomy)
 
     # warn categories with less than threshold examples
-    df = warn_small_categories(df, taxonomy, threshold=5)
+    warn_small_categories(df, taxonomy, threshold=5)
     
     # clean item names
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
-
-    import sys
-    sys.exit(1)
 
     # split in train, test
     df_train, df_test = np.split(df.sample(frac=1), [
         int(args.train_size * len(df)), 
     ])
 
+    # resets row numbers
+    df_train.reset_index(drop=True, inplace=True)
+    df_test.reset_index(drop=True, inplace=True)
 
-    # write processed data
-    df_train.to_csv(join(args.write_dir, "train.csv"), index=False)
-    df_test.to_csv(join(args.write_dir, "test.csv"), index=False)
+    # split dataset per category
+    train_datasets = split_dataset(df_train, taxonomy)
+    test_datasets = split_dataset(df_test, taxonomy)
+    assert len(train_datasets) == len(test_datasets)
+
+    # create dirs for train/test
+    write_data_split(train_datasets, args.write_dir, "train")
+    write_data_split(test_datasets, args.write_dir, "test")
 
     # log processed dataset to W&B
     if args.upload_wandb:
-        artifact = wandb.Artifact('processed-dataset', type='dataset')
+        artifact = wandb.Artifact('doordash', type='dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
 
 
+def write_data_split(data_split, write_dir: str, split_name: str):
+    data_split_dir = join(write_dir, split_name)
+    makedirs(data_split_dir)
+
+    for category_id, dataset in data_split:
+        category_dir = join(data_split_dir, category_id)
+        makedirs(category_dir)
+
+        # write dataset
+        dataset.to_csv(join(category_dir, "data.csv"))
+ 
+
 def fix_mislabeled_categories(df):
-    # Baby & Child has been mislabeled as Baby
+    # e.g. Baby & Child has been mislabeled as Baby
     mislabeled_l1_categories_as_l1 = {
         "Baby": "Baby & Child",
         "Condiments": "Pantry",
@@ -127,11 +167,10 @@ def fix_mislabeled_categories(df):
 
 
 def add_category_ids(df, taxonomy):
-    # iterate through taxonomy and build vendor id --> category id
-    vendor_id_to_category_id = {}
+    # build map of category name to id
+    category_name_to_category_id = {}
     for node, path in taxonomy.iter():
-        if node.vendor_id is not None:
-            vendor_id_to_category_id[node.vendor_id] = node.category_id
+        category_name_to_category_id[node.category_name] = node.category_id
     
     # L1, ..., Lx
     max_levels = len(df.columns)
@@ -140,12 +179,12 @@ def add_category_ids(df, taxonomy):
     
     # Create L1, ..., Lx category ids
     for level_header in level_headers:
-        # Lx --> Lx Vendor ID
-        category_id_header = f"{level_header} Vendor ID"
-
-        # convert column of vendor ids to column of category ids
-        taxonomy_data[category_id_header] = taxonomy_data[level_header].apply(
-            lambda x: vendor_id_to_category_id[x]
+        # header for column with category id for level
+        category_id_header = f"{level_header} ID"
+        
+        # initialize category id column
+        df[category_id_header] = df[level_header].apply(
+            lambda x: category_name_to_category_id[x]
         )
 
 
@@ -158,7 +197,7 @@ def align_to_taxonomy(df, taxonomy):
     # unique L1, ..., Lx
     unique_categories = df.drop_duplicates(level_headers)
 
-    for categories in unique_categories.iterrows():
+    for _, categories in unique_categories.iterrows():
         for i in range(len(level_headers)):
             child_id = categories[f"L{i + 1} ID"]
             parent_id = (categories[f"L{i} ID"] 

@@ -220,7 +220,7 @@ class Taxonomy:
     def from_csv(self, filepath: str) -> 'Taxonomy':
         """Read csv into native data structure"""
         # read taxonomy from dir
-        return Taxonomy.from_df(pd.from_csv(filepath))
+        return Taxonomy.from_df(pd.read_csv(filepath))
 
     @classmethod
     def from_df(self, df: pd.DataFrame) -> 'Taxonomy':
@@ -257,7 +257,7 @@ class Taxonomy:
             category_name = row[f"L{depth}"]
             model_id = row["Model ID"]
             class_id = int(row["Class ID"]) if "Class ID" in row else None
-            vendor_id = row["Vendor ID"]
+            vendor_id = int(row["Vendor ID"])
             group = row["Type"].lower() == "group"
 
             # add node to taxonomy
@@ -318,7 +318,7 @@ class Taxonomy:
 
         for child in node.children:
             path.append(child)
-            yield from self._iter(child, path)
+            yield from self._iter(child, path, skip_leaves)
             path.pop()
 
     def _repr(self) -> List[Tuple[List[str], List[str], str, str, str, bool]]:
