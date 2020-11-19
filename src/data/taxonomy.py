@@ -138,18 +138,17 @@ class Taxonomy:
     def iter(self, skip_leaves: bool = False):
         return self._iter(self._root, [self._root], skip_leaves)
 
-    def get_max_level(self):
+    def get_max_depth(self):
         """
-        Return max level (L1, L2, etc.)
-        Equivalent to the max depth - 1 (root)
+        Return max depth of tree, root has depth 0
         """
-        max_level = 0
+        max_depth = 0
         for node, path in self.iter():
-            if max_level < len(path):
-                max_level = len(path)
+            if max_depth < len(path):
+                max_depth = len(path)
 
-        # don't count root in depth
-        return max_level - 1
+        # zero-index depth 
+        return max_depth - 1
 
     def add_path(self, 
                  path_category_ids: List[str], 
@@ -239,17 +238,19 @@ class Taxonomy:
         taxonomy = Taxonomy(root)
 
         for _, row in df.iterrows():
-            depth = 1
-            while f"L{depth}" in row and not pd.isnull(row[f"L{depth}"]):
-                depth += 1
-            depth -= 1
+            # if row has L0, L1 headers, returns [0, 1]
+            row_levels = [x for x in range(max_levels) 
+                          if f"L{x} ID" in row and not pd.isnull(row[f"L{x} ID"])]
 
-            # row specifies root which has already been parsed
+            # If row has L0, L1, headers, returns 1
+            depth = row_levels[-1] 
+
+            # skip row with depth 0 as it specifies root, which has already been parsed.
             if depth == 0:
                 continue
 
             # extract node information 
-            parent_id = row[f"L{depth - 1} ID"]
+            path_category_ids = [row[f"L{level} ID"] for level in row_levels]
             category_id = row[f"L{depth} ID"]
             category_name = row[f"L{depth}"]
             model_id = row["Model ID"]
@@ -257,12 +258,12 @@ class Taxonomy:
             group = row["Type"].lower() == "group"
 
             # add node to taxonomy
-            taxonomy.add(parent_category_id=parent_id, 
-                         category_id=category_id, 
-                         category_name=category_name, 
-                         vendor_id=vendor_id, 
-                         model_id=model_id, 
-                         group=group)
+            taxonomy.add_path(path_category_ids=path_category_ids, 
+                              category_id=category_id, 
+                              category_name=category_name, 
+                              vendor_id=vendor_id, 
+                              model_id=model_id, 
+                              group=group)
 
         # parse into native data structure
         return taxonomy
@@ -271,8 +272,8 @@ class Taxonomy:
     def to_csv(self, filepath: str):
         """Write a human readable representation of taxonomy to a file in specified dir"""
         # write to a specific file name in dir
-        # get max level (e.g. if no L3 categories return 2)
-        max_level = self.get_max_level()
+        # get max level (e.g. if L0, L1 categories returns 1)
+        max_level = self.get_max_depth()
 
         # category names, category ids, vendor ids
         level_headers = [f"L{x}" for x in range(max_level + 1)]
