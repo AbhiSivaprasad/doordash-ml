@@ -1,3 +1,4 @@
+import json
 import os, csv
 import wandb
 import torch
@@ -12,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
 from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
-from ..data.data import split_data, generate_datasets
+from ..data.data import split_data, prepare_dataset
 from ..data.taxonomy import Taxonomy
 from ..data.bert import BertDataset
 from ..args import TrainArgs
@@ -30,33 +31,47 @@ def run_training(args: TrainArgs):
     # set seed for reproducibility
     set_seed(args.seed)
     
+    # default logger prints
+    logger = DefaultLogger()
+
     # initialize W & B api 
     wandb_api = wandb.Api({
         "project": args.wandb_project,
     })
 
-    # download dataset to specified dir path
-    wandb_api.artifact(args.data_artifact_name).download(args.save_dir)
-    data = pd.read_csv(join(args.save_dir, args.data_filename))
-    
-    # default logger prints
-    logger = DefaultLogger()
+    # process datasets
+    datasets = []
+    for category_id in args.category_ids:
+        # create dir for category's dataset
+        data_dir = join(args.save_dir, category_id, "data")
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
 
-    # taxonomy to map between category names and class ids
-    taxonomy = Taxonomy().read(args.taxonomy_path)
+        # download category's dataset
+        dataset_artifact_name = f"{args.data_artifact_prefix}-{category_id}"
+        wandb_api.artifact(dataset_artifact_name).download(data_dir)
+        
+        # read in train dataset for category
+        dataset = pd.read_csv(join(data_dir, args.train_data_filename))
 
-    # read full dataset and create data splits before splitting by category
-    train_data, valid_data, test_data = split_data(data, args)
-    
-    # For each category generate train, valid, test
-    datasets = generate_datasets(train_data, valid_data, test_data, args.categories)
+        # encode target variable and return labels dict (category id --> class id)
+        labels = prepare_dataset(datsaset)
+
+        # train dataset splits into (train, val, test) 
+        data_splits = split_data(dataset, args)
+
+        # keep track of dataset, labels per category
+        datasets.append((category_id, data_splits, labels))
 
     # For each dataset, create dataloaders and run training
-    for category_name, data_splits in datasets:
-        logger.debug("Training Model for Category:", category_name)
+    for category_id, data_splits, labels in datasets:
+        logger.debug("Training Model for Category:", category_id)
     
-        model_dir = join(args.save_dir, category_name, "model")
+        model_dir = join(args.save_dir, category_id, "model")
         Path(model_dir).mkdir(parents=True, exist_ok=True)
+
+        # store class id labels with model
+        with open(join(model_dir, "labels.json"), 'w') as f:
+            json.dump(labels, f)
 
         # initialize W&B run
         wandb_config = {
@@ -75,7 +90,7 @@ def run_training(args: TrainArgs):
         run.use_artifact(args.data_artifact_name)
 
         # build model based on # of target classes
-        num_classes = taxonomy.find_node_by_name(category_name)[0].num_children
+        num_classes = len(labels)
         model, tokenizer = get_model(num_classes, args)
 
         # tracks model properties in W&B
@@ -115,7 +130,7 @@ def run_training(args: TrainArgs):
                                torch.from_numpy(test_data.targets.values).to(args.device))
 
         # Track model and results
-        upload_checkpoint(run, category_name, model_dir)
+        upload_checkpoint(run, category_id, model_dir, labels)
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
         del wandb.summary["learning rate"]  # will be in config
         wandb.summary.update({

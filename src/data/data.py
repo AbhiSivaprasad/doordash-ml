@@ -2,51 +2,30 @@ import pandas as pd
 import numpy as np
 
 from typing import List
+from collections import OrderedDict
 
 from ..args import TrainArgs
 
 
-def generate_datasets(train_data: pd.DataFrame, 
-                      valid_data: pd.DataFrame, 
-                      test_data: pd.DataFrame,
-                      categories: List[str]):
+def prepare_dataset(data: pd.DataFrame) -> List[str]:
     """
-    Given a dataset, generate subsets for each category. Currently hardcode L1, L2.
+    Create a target column with class ids and return a mapping from class ids to category ids
+
+    :return: List[str]. Labels in a list where element i is the category id for class id i
     """
-    datasets = [train_data, valid_data, test_data]
+    # encode category ids
+    category_id_to_class_id_mapping = OrderedDict()
+    def category_id_to_class_id(category_id: str) -> int:
+        if category_id not in category_id_to_class_id_mapping:
+            category_id_to_class_id_mapping[category_id] \
+                = len(category_id_to_class_id_mapping)
 
-    # "L2" is shorthand for all L2 categories 
-    if "L2" in categories:
-        categories.remove("L2")
-        categories.extend(list(set(train_data["L1"])))
+    # create target variable
+    data["target"] = data["category_id"].apply(category_id_to_class_id) 
 
-    # extract L1 datasets
-    l1_datasets = (
-        # "root" is the category name for L1 in the taxonomy
-        [("root", [dataset for dataset in datasets])]
-        if "L1" in categories else []
-    )
-
-    # extract L2 datasets
-    l2_datasets = []
-    for category in [c for c in categories if c != "L1"]:
-        l2_datasets.append(
-            (category, [dataset[dataset['L1'] == category].reset_index(drop=True) 
-                        for dataset in datasets])
-        )
-
-    # for each l1 dataset the target is now "l1_target"
-    for _, datasets in l1_datasets:
-        for dataset in datasets:
-            dataset["target"] = dataset["L1_target"]
-
-    # for each l2 dataset the target is now "l2_target"
-    for _, datasets in l2_datasets:
-        for dataset in datasets:
-            dataset["target"] = dataset["L2_target"]
-
-    # list of tuples (L1 name, dataset)
-    return l1_datasets + l2_datasets
+    # class ids were added in order to mapping dict
+    labels = [category_id for category_id, _ in category_id_to_class_id_mapping.items()]
+    return labels
 
 
 def split_data(data: pd.DataFrame, args: TrainArgs) -> List[pd.DataFrame]:
