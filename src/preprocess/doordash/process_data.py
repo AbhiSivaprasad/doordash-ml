@@ -1,3 +1,4 @@
+import sys
 import wandb
 import random
 import numpy as np
@@ -10,7 +11,7 @@ from os import makedirs
 from os.path import join
 from tap import Tap
 
-from src.api.wandb import get_latest_version_number
+from src.api.wandb import get_latest_artifact_identifier
 from src.data.taxonomy import Taxonomy
 from src.utils import set_seed
 
@@ -72,14 +73,15 @@ def preprocess(args: PreprocessArgs):
     df.columns = ['Business', 'Name', 'L1', 'L2']
 
     # add data source identifier (wandb id of processed dataset)
-    current_version_number = get_latest_version_number(
-        api, artifact_name=args.processed_dataset_artifact_name)
+    latest_artifact_identifier = get_latest_artifact_identifier(
+        api, artifact_identifier=f"{args.processed_dataset_artifact_name}:latest")
 
-    # version alias of processed dataset about to be created assigned as source
-    new_version = (f"v{current_version_number + 1}" 
-                   if current_version_number is not None 
-                   else "v0")
-    df.assign(Source=f"{args.project}/{args.processed_dataset_artifact_name}:{new_version}")
+    # If no artifact found then v0 will be created
+    if latest_artifact_identifier is None:
+        latest_artifact_identifier = f"{args.processed_dataset_artifact_name}:v0"
+
+    # full artifact identifier with version of processed dataset, which is about to be created, assigned as source
+    df = df.assign(Source=f"{args.project}/{latest_artifact_identifier}")
 
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
@@ -88,7 +90,10 @@ def preprocess(args: PreprocessArgs):
     taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy.csv'))
 
     # add category ids to data with the taxonomy (match through vendor id)
-    add_category_ids(df, taxonomy) 
+    successful = add_category_ids(df, taxonomy) 
+    if not successful:
+        print("Fix invalid category names!")
+        sys.exit(1)
 
     # catch invalid class labels 
     align_to_taxonomy(df, taxonomy)
@@ -119,13 +124,13 @@ def preprocess(args: PreprocessArgs):
 
     # log processed dataset to W&B
     if args.upload_wandb:
-        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='source-dataset')
+        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
 
         # log per category artifacts
         for category_id in train_datasets.keys():
-            artifact = wandb.Artifact(f"dataset-{category_id}", type='category-dataset')
+            artifact = wandb.Artifact(f"dataset-{category_id}", type='dataset')
             artifact.add_file(join(args.write_dir, "train", category_id, "train.csv"))
             artifact.add_file(join(args.write_dir, "test", category_id, "test.csv"))
             run.log_artifact(artifact)
@@ -173,12 +178,25 @@ def fix_mislabeled_categories(df):
                         for t in df[['L1', 'L2']].itertuples()]
 
 
-def add_category_ids(df, taxonomy):
+def add_category_ids(df, taxonomy) -> bool:
+    """Add category ids to df and return True if successful else False if invalid categories found"""
     # build map of category name to id
-    category_name_to_category_id = {}
+    category_name_to_category_id_mapping = {}
     for node, path in taxonomy.iter():
-        category_name_to_category_id[node.category_name] = node.category_id
-    
+        category_name_to_category_id_mapping[node.category_name] = node.category_id
+   
+    # store set of invalid categories to not reprint
+    invalid_categories = set()  # values = (category name, level)
+
+    # function to map from category name to category id
+    def category_name_to_category_id(category_name: str, level_header: str) -> str:
+        try:
+            return category_name_to_category_id_mapping[category_name]
+        except KeyError:
+            # track invalid categories
+            invalid_categories.add((category_name, level_header))
+            return np.nan
+ 
     # L1, ..., Lx
     max_levels = len(df.columns)
     level_headers = [f"L{x}" for x in range(max_levels) 
@@ -191,8 +209,14 @@ def add_category_ids(df, taxonomy):
         
         # initialize category id column
         df[category_id_header] = df[level_header].apply(
-            lambda x: category_name_to_category_id[x]
+            lambda category_name: category_name_to_category_id(category_name, level_header)
         )
+
+    # print invalid categories
+    for category_name, level_header in invalid_categories:
+        print(f"Invalid {level_header} Category: {category_name}")
+
+    return len(invalid_categories) == 0
 
 
 def align_to_taxonomy(df, taxonomy):
@@ -224,8 +248,8 @@ def split_dataset(df, taxonomy):
 
         # If depth = 0 (root) then we want all L1s which is the entire dataset
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
-        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name"]]
-        dataset.columns = ["Business", "Category Name", "Category ID", "Name"]
+        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name", "Source"]]
+        dataset.columns = ["Business", "Category Name", "Category ID", "Name", "Source"]
         datasets[node.category_id] = dataset
     
     return datasets

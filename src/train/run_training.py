@@ -130,7 +130,7 @@ def run_training(args: TrainArgs):
                                torch.from_numpy(test_data.targets.values).to(args.device))
 
         # Track model and results
-        upload_checkpoint(run, category_id, model_dir, labels)
+        upload_checkpoint(run, category_id, model_dir)
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
         del wandb.summary["learning rate"]  # will be in config
         wandb.summary.update({

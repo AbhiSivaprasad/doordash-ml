@@ -30,10 +30,10 @@ def load_checkpoint(dir_path: str):
             AutoTokenizer.from_pretrained(dir_path, do_lower_case=False))
 
 
-def upload_checkpoint(run, category_name: str, dir_path: str):
+def upload_checkpoint(run, category_id: str, dir_path: str):
     """Save checkpoint to W&B"""
     # save model & tokenizer as artifact
-    artifact = wandb.Artifact(f'{category_name}-model', type='model')
+    artifact = wandb.Artifact(f'model-{category_id}', type='model')
     artifact.add_dir(dir_path)
     run.log_artifact(artifact)
 
