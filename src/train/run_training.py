@@ -47,7 +47,7 @@ def run_training(args: TrainArgs):
         Path(data_dir).mkdir(parents=True, exist_ok=True)
 
         # download category's dataset
-        dataset_artifact_name = f"{args.data_artifact_prefix}-{category_id}"
+        dataset_artifact_name = f"dataset-{category_id}:latest"
         wandb_api.artifact(dataset_artifact_name).download(data_dir)
         
         # read in train dataset for category

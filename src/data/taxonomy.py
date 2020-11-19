@@ -79,7 +79,7 @@ class TaxonomyNode:
         return self.children[index] if index is not None else None
 
     def _get_child_index(self, category_id: str) -> int or None:
-        matches = [i for i, _ in enumerate(self.children) 
+        matches = [i for i, c in enumerate(self.children) 
                    if c.category_id == category_id]
 
         # category id is unique over children
@@ -152,7 +152,6 @@ class Taxonomy:
 
     def add_path(self, 
                  path_category_ids: List[str], 
-                 category_id: str,
                  category_name: str, 
                  vendor_id: Optional[str] = None,
                  model_id: Optional[str] = None,
@@ -162,14 +161,16 @@ class Taxonomy:
         Category ids are not guaranteed to be a unique identifier. Instead, the full path of ids 
             from root to node will uniquely identify the node.
 
-        :param path_category_ids: category id of nodes on path from root to new node (not including new node)
-        :param category_id: category id of new node
+        :param path_category_ids: category id of nodes on path from root to new node
         """
         # find parent node in tree specified by path
-        parent_node, _ = self.find_node_by_path(path_category_ids)
-        
+        parent_node, _ = self.find_node_by_path(path_category_ids[:-1])
+
+        # category id of node to add
+        category_id = path_category_ids[-1]
+
         if parent_node is None:
-            return ValueError(f"Invalid path category ids:", path_category_ids)
+            raise ValueError(f"Invalid path category ids:", path_category_ids)
 
         # add child
         child_node = parent_node.add_child(category_id, category_name, vendor_id, model_id, group)
@@ -199,9 +200,12 @@ class Taxonomy:
         return: Tuple (node, path) where path is the list of nodes from root to desired node.
                 Root is not included in node path 
         """
+        # first id in path must be root's
+        assert path_category_ids[0] == self._root.category_id
+
         node = self._root  # track current node through path iteration
         path = [node]      # track current path of nodes
-        for path_category_id in path_category_ids:
+        for path_category_id in path_category_ids[1:]:
             node = node.get_child(path_category_id)
 
             # path does not exist
@@ -251,7 +255,6 @@ class Taxonomy:
 
             # extract node information 
             path_category_ids = [row[f"L{level} ID"] for level in row_levels]
-            category_id = row[f"L{depth} ID"]
             category_name = row[f"L{depth}"]
             model_id = row["Model ID"]
             vendor_id = int(row["Vendor ID"])
@@ -259,7 +262,6 @@ class Taxonomy:
 
             # add node to taxonomy
             taxonomy.add_path(path_category_ids=path_category_ids, 
-                              category_id=category_id, 
                               category_name=category_name, 
                               vendor_id=vendor_id, 
                               model_id=model_id, 

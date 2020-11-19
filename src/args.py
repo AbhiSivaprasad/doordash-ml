@@ -68,9 +68,7 @@ class TrainArgs(CommonArgs):
     # W & B args
     wandb_project: str = "doordash"
     """Name of W&B project"""
-    data_artifact_name: str = "processed-dataset:latest"
-    """Artifact name for processed dataset"""
-    data_filename: str = "train.csv"
+    train_data_filename: str = "train.csv"
     """File name of train data in dataset artifact"""
 
     # Model args

@@ -28,11 +28,11 @@ class PreprocessArgs(Tap):
     """Upload processed dataset to W&B"""
     project: str = "doordash"
     """Name of project in W&B"""
-    raw_dataset_artifact_identifier: str = "raw-dataset:latest"
+    raw_dataset_artifact_identifier: str = "dataset-doordash-raw:latest"
     """Name of raw dataset artifact in W&B"""
-    taxonomy_artifact_identifier: str = "taxonomy:latest"
+    taxonomy_artifact_identifier: str = "taxonomy-doordash:latest"
     """Name of taxonomy artifact in W&B"""
-    processed_dataset_artifact_name: str = "doordash"
+    processed_dataset_artifact_name: str = "dataset-doordash-processed"
     """Name of processed dataset artifact to create"""
 
     def process_args(self):
@@ -85,7 +85,7 @@ def preprocess(args: PreprocessArgs):
     fix_mislabeled_categories(df)
  
     # build taxonomy
-    taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy-processed.csv'))
+    taxonomy = Taxonomy.from_csv(join(args.download_dir, 'taxonomy.csv'))
 
     # add category ids to data with the taxonomy (match through vendor id)
     add_category_ids(df, taxonomy) 
@@ -119,21 +119,28 @@ def preprocess(args: PreprocessArgs):
 
     # log processed dataset to W&B
     if args.upload_wandb:
-        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='dataset')
+        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='source-dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
+
+        # log per category artifacts
+        for category_id in train_datasets.keys():
+            artifact = wandb.Artifact(f"dataset-{category_id}", type='category-dataset')
+            artifact.add_file(join(args.write_dir, "train", category_id, "train.csv"))
+            artifact.add_file(join(args.write_dir, "test", category_id, "test.csv"))
+            run.log_artifact(artifact)
 
 
 def write_data_split(data_split, write_dir: str, split_name: str):
     data_split_dir = join(write_dir, split_name)
     makedirs(data_split_dir)
 
-    for category_id, dataset in data_split:
+    for category_id, dataset in data_split.items():
         category_dir = join(data_split_dir, category_id)
         makedirs(category_dir)
 
         # write dataset
-        dataset.to_csv(join(category_dir, "data.csv"))
+        dataset.to_csv(join(category_dir, f"{split_name}.csv"))
  
 
 def fix_mislabeled_categories(df):
@@ -191,26 +198,26 @@ def add_category_ids(df, taxonomy):
 def align_to_taxonomy(df, taxonomy):
     # get full list of level headers L1, ..., Lx
     max_levels = len(df.columns)
-    level_headers = [f"L{x}" for x in range(max_levels) 
-                     if f"L{x}" in df.columns]
+    level_headers = [f"L{x} ID" for x in range(max_levels) 
+                     if f"L{x} ID" in df.columns]
 
     # unique L1, ..., Lx
     unique_categories = df.drop_duplicates(level_headers)
 
-    for _, categories in unique_categories.iterrows():
-        for i in range(len(level_headers)):
-            child_id = categories[f"L{i + 1} ID"]
-            parent_id = (categories[f"L{i} ID"] 
-                         if i > 0 
-                         else taxonomy._root.category_id)
+    for _, row in unique_categories.iterrows():
+        # get path of ids from L1, ..., Lx
+        path_ids = [row[header] for header in level_headers 
+                    if not pd.isnull(row[header])]
 
-            if not taxonomy.has_link(parent_id, child_id):
-                print(f"Bad L{i + 1} Category:", categories[f"L{i + 1}"])
-                print(categories)
+        # root's id must be first in path
+        path_ids.insert(0, taxonomy._root.category_id)
+        
+        if not taxonomy.has_path(path_ids):
+            print("Bad Category Path:", path_ids)
 
 
 def split_dataset(df, taxonomy):
-    datasets = []
+    datasets = {}  # key = category id, value = dataset
     for node, path in taxonomy.iter(skip_leaves=True):
         # first node in path (root) has depth 0
         depth = len(path) - 1 
@@ -219,7 +226,7 @@ def split_dataset(df, taxonomy):
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
         dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name"]]
         dataset.columns = ["Business", "Category Name", "Category ID", "Name"]
-        datasets.append((node.category_id, dataset))
+        datasets[node.category_id] = dataset
     
     return datasets
 

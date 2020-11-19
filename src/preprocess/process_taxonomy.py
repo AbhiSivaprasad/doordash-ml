@@ -66,6 +66,7 @@ def encode_id(value: Any, id_lookup: Dict[Any, int]) -> int:
         return value
 
     if value not in id_lookup:
+        # TODO: validate only alphanumeric characters, dashes, underscores, and dots
         id_lookup[value] = snake_case(value) 
 
     return id_lookup[value]
@@ -76,7 +77,9 @@ def snake_case(name: str) -> str:
     Generate an identifier based on name
     e.g. "Personal Care" --> "personal_care"
     """
-    return "_".join(name.lower().split(" "))
+    with_underscores = "_".join(name.lower().split(" "))
+    with_legal_chars = with_underscores.replace("&", "and")
+    return with_legal_chars
 
 
 if __name__ == '__main__':
