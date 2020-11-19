@@ -54,7 +54,7 @@ def run_training(args: TrainArgs):
         dataset = pd.read_csv(join(data_dir, args.train_data_filename))
 
         # encode target variable and return labels dict (category id --> class id)
-        labels = prepare_dataset(datsaset)
+        labels = prepare_dataset(dataset)
 
         # train dataset splits into (train, val, test) 
         data_splits = split_data(dataset, args)
@@ -87,7 +87,7 @@ def run_training(args: TrainArgs):
         run = wandb.init(project=args.wandb_project, job_type="training", config=wandb_config, reinit=True)
 
         # mark dataset artifact as input to run
-        run.use_artifact(args.data_artifact_name)
+        run.use_artifact(f"dataset-{category_id}:latest")
 
         # build model based on # of target classes
         num_classes = len(labels)

@@ -41,8 +41,6 @@ class CommonArgs(Tap):
 
 
 class TrainArgs(CommonArgs):
-    data_path: str
-    """Path to data"""
     seed: int = 0
     """Seed for reproducibility"""
     max_seq_length: int = 100
@@ -57,13 +55,10 @@ class TrainArgs(CommonArgs):
     """Size of validation split"""
     test_size: float = 0.1
     """Size of test split"""
-    separate_test_path: str = None
-    """Use separate path as test set, test_size will be added to train_size"""
-    taxonomy_path: str
+    taxonomy_path: str = None
     """Path to taxonomy mapping categories to class ids"""
-    categories: List[str] = ["L1"]
-    """List of category names to build classifiers for. 'L1' signifes L1 classifier. 
-    'L2' signifies all L2 classifiers."""
+    category_ids: List[str]
+    """List of category ids to train models for"""
 
     # W & B args
     wandb_project: str = "doordash"
@@ -93,19 +88,11 @@ class TrainArgs(CommonArgs):
         if not self.train_size + self.valid_size + self.test_size == 1:
             raise ValueError("train_size, valid_size, test_size must sum to 1")
 
-    def validate_categories(self):
-        # 'L2' signfies all L2 categories so if it exists 'L1' can be the only other passed in category
-        if 'L2' in self.categories:
-            required_len = 1 if 'L1' not in self.categories else 2
-            if not len(self.categories) == required_len:
-                raise ValueError("Invalid use of 'L2' in categories list")
-
     def process_args(self) -> None:
         super(TrainArgs, self).process_args()
        
-        # validate 
+        # validators
         self.validate_split_sizes()
-        self.validate_categories()
 
 
 class CommonPredictArgs(CommonArgs):

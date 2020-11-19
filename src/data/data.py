@@ -20,8 +20,10 @@ def prepare_dataset(data: pd.DataFrame) -> List[str]:
             category_id_to_class_id_mapping[category_id] \
                 = len(category_id_to_class_id_mapping)
 
+        return category_id_to_class_id_mapping[category_id]
+
     # create target variable
-    data["target"] = data["category_id"].apply(category_id_to_class_id) 
+    data["target"] = data["Category ID"].apply(category_id_to_class_id) 
 
     # class ids were added in order to mapping dict
     labels = [category_id for category_id, _ in category_id_to_class_id_mapping.items()]
