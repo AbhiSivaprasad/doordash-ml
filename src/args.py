@@ -17,6 +17,9 @@ class CommonArgs(Tap):
     _timestamp: str = str(datetime.now().strftime("%Y%m%d-%H%M%S"))
     """Timestampe at command run time. Set in process_args"""
 
+    wandb_project: str = "doordash"
+    """Name of W&B project"""
+
     @property
     def device(self) -> torch.device:
         """The :code:`torch.device` on which to load and process data and models."""
@@ -61,8 +64,6 @@ class TrainArgs(CommonArgs):
     """List of category ids to train models for"""
 
     # W & B args
-    wandb_project: str = "doordash"
-    """Name of W&B project"""
     train_data_filename: str = "train.csv"
     """File name of train data in dataset artifact"""
 
@@ -96,11 +97,6 @@ class TrainArgs(CommonArgs):
 
 
 class CommonPredictArgs(CommonArgs):
-    models_dir: str
-    """Path to root models directory. There should be a subdirectory structure according to taxonomy
-    e.g. subdirs are named L1 categories"""
-    test_path: str
-    """Path to test set"""
     max_seq_length: int = 100
     """Max sequence length for BERT models. Longer inputs are truncated"""
     batch_size: int = 32
@@ -108,11 +104,13 @@ class CommonPredictArgs(CommonArgs):
  
 
 class PredictArgs(CommonPredictArgs):
+    category_id: str
+    """Category id to predict for"""
     autoload_best_model: bool = False
     """Recursively sweep models_dir for the model with highest validation score
     if False then models_dir must directly contain the model"""
-    target_variable: str = "L2_target"
-    """Name of target variable in test dataset"""
+    model_artifact_identifier: str
+    """W&B identifier for desired model artifact"""
 
 
 class BatchPredictArgs(CommonPredictArgs):

@@ -7,7 +7,7 @@ from collections import OrderedDict
 from ..args import TrainArgs
 
 
-def prepare_dataset(data: pd.DataFrame) -> List[str]:
+def encode_target_variable(data: pd.DataFrame) -> List[str]:
     """
     Create a target column with class ids and return a mapping from class ids to category ids
 
@@ -28,6 +28,21 @@ def prepare_dataset(data: pd.DataFrame) -> List[str]:
     # class ids were added in order to mapping dict
     labels = [category_id for category_id, _ in category_id_to_class_id_mapping.items()]
     return labels
+
+
+def encode_target_variable_with_labels(data: pd.DataFrame, labels: List[str]) -> None:
+    """
+    Create a target column with class ids based on the mapping provided in labels
+    
+    :param labels: ith label corresponds to category id for class i
+    """
+    category_id_to_label = {category_id: class_id 
+                            for class_id, category_id in enumerate(labels)}
+
+    # apply mapping to create target column
+    data["target"] = data["Category ID"].apply(
+        lambda category_id: category_id_to_label[category_id]
+    )
 
 
 def split_data(data: pd.DataFrame, args: TrainArgs) -> List[pd.DataFrame]:

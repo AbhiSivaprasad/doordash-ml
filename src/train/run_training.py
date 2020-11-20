@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 
 from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
-from ..data.data import split_data, prepare_dataset
+from ..data.data import split_data, encode_target_variable
 from ..data.taxonomy import Taxonomy
 from ..data.bert import BertDataset
 from ..args import TrainArgs
@@ -54,7 +54,7 @@ def run_training(args: TrainArgs):
         dataset = pd.read_csv(join(data_dir, args.train_data_filename))
 
         # encode target variable and return labels dict (category id --> class id)
-        labels = prepare_dataset(dataset)
+        labels = encode_target_variable(dataset)
 
         # train dataset splits into (train, val, test) 
         data_splits = split_data(dataset, args)
