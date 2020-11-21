@@ -1,6 +1,6 @@
 import os
 import torch
-
+import time
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from typing import List, Optional
@@ -43,7 +43,40 @@ class CommonArgs(Tap):
             self.save_dir = temp_dir.name
 
 
-class TrainArgs(CommonArgs):
+class ResnetTrainArgs(CommonArgs):
+
+    # Training args
+    group: str = None
+    num_classes: int = -1
+    image_size: int = 256
+    lr: float = 0.01
+    epochs: int = 80
+    architecture: str = "resnet18"
+    workers: int = 32
+    batch_size: int = 64
+    momentum: float = 0.9
+    weight_decay: float = 1e-4
+
+    eval: bool = False
+
+    # Starting models
+    pretrained: bool = True
+    resume: bool = False
+    """Model ID of model to start training from"""
+    checkpoint: str = None
+    """Whether to pad images to fit dimentions"""
+    pad: bool = False
+    """Unique model ID"""
+    id: str = tr(int(time.time()))
+
+    # Directories
+    train_directory: "/home/sarah/training/train/"
+    validation_directory: "/home/sarah/training/validation/"
+
+    def process_args(self) -> None:
+        super(ResnetTrainArgs, self).process_args()
+ 
+class BertTrainArgs(CommonArgs):
     seed: int = 0
     """Seed for reproducibility"""
     max_seq_length: int = 100
@@ -90,7 +123,7 @@ class TrainArgs(CommonArgs):
             raise ValueError("train_size, valid_size, test_size must sum to 1")
 
     def process_args(self) -> None:
-        super(TrainArgs, self).process_args()
+        super(BertTrainArgs, self).process_args()
        
         # validators
         self.validate_split_sizes()
