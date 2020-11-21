@@ -4,10 +4,10 @@ import time
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from typing import List, Optional
-from tap import Tap
+#from tap import Tap
 
 
-class CommonArgs(Tap):
+class CommonArgs:
     save_dir: str = None
     """Directory to save outputs"""
     cuda: bool = True
@@ -34,7 +34,7 @@ class CommonArgs(Tap):
         return self._timestamp
     
     def process_args(self):
-        super(CommonArgs, self).process_args()
+        #super(CommonArgs, self).process_args()
 
         # Create temporary directory as save directory if not provided
         global temp_dir  # Prevents the temporary directory from being deleted upon function return
@@ -45,36 +45,62 @@ class CommonArgs(Tap):
 
 class ResnetTrainArgs(CommonArgs):
 
-    # Training args
-    group: str = None
-    num_classes: int = -1
-    image_size: int = 256
-    lr: float = 0.01
-    epochs: int = 80
-    architecture: str = "resnet18"
-    workers: int = 32
-    batch_size: int = 64
-    momentum: float = 0.9
-    weight_decay: float = 1e-4
+    def __init__(self):
+ 
+        # Training args
+        self.save_dir = "/home/sarah/glisten-cv/models"
+        self.gpu = False
+        self.wandb_projects = "allparel"
+        self.group = "formality"
+        self.num_classe = -1
+        self.image_size= 256
+        self.lr: float = 0.01
+        self.epochs = 80
+        self.architecture = "resnet18"
+        self.workers = 32
+        self.batch_size = 64
+        self.momentum = 0.9
+        self.weight_decay = 1e-4
+        self.eval = False
+        self.pretrained = True
+        self.resume = False
+        self.checkpoint = None
+        self.pad = False
+        self.id = str(int(time.time()))
+        self.train_directory = "/home/sarah/training/train/"
+        self.validation_directory = "/home/sarah/training/validation/"
 
-    eval: bool = False
 
-    # Starting models
-    pretrained: bool = True
-    resume: bool = False
-    """Model ID of model to start training from"""
-    checkpoint: str = None
-    """Whether to pad images to fit dimentions"""
-    pad: bool = False
-    """Unique model ID"""
-    id: str = tr(int(time.time()))
+    ## Training args
+    #group: str = None
+    #num_classes: int = -1
+    #image_size: int = 256
+    #lr: float = 0.01
+    #epochs: int = 80
+    #architecture: str = "resnet18"
+    #workers: int = 32
+    #batch_size: int = 64
+    #momentum: float = 0.9
+    #weight_decay: float = 1e-4
 
-    # Directories
-    train_directory: "/home/sarah/training/train/"
-    validation_directory: "/home/sarah/training/validation/"
+    #eval: bool = False
 
-    def process_args(self) -> None:
-        super(ResnetTrainArgs, self).process_args()
+    ## Starting models
+    #pretrained: bool = True
+    #resume: bool = False
+    #"""Model ID of model to start training from"""
+    #checkpoint: str = None
+    #"""Whether to pad images to fit dimentions"""
+    #pad: bool = False
+    #"""Unique model ID"""
+    #id: str = str(int(time.time()))
+
+    ## Directories
+    #train_directory: "/home/sarah/training/train/"
+    #validation_directory: "/home/sarah/training/validation/"
+
+    #def process_args(self) -> None:
+    #    super(ResnetTrainArgs, self).process_args()
  
 class BertTrainArgs(CommonArgs):
     seed: int = 0

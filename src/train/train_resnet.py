@@ -26,8 +26,8 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 import time
 
-from ..models import ResnetModel
-from ..data import  ImageDataset
+from ..models.ResnetModel import Model 
+from ..data.ImageDataset import  ImageDataset
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -38,7 +38,7 @@ hyperparams = None
 best_acc = 0
 
 def get_latest_model(group):
-    f = os.path.join(args.save_dir, args.group) 
+    f = os.path.join(hyperparams["save_dir"], args.group) 
     models = sorted(os.listdir(f))
     latest = f + models[len(models) - 1]
     print("Latest model:", latest)
@@ -47,13 +47,9 @@ def get_latest_model(group):
 
 def main():
     ngpus_per_node = torch.cuda.device_count()
-    hyperparams["lr"] = args.lr
-    hyperparams["image_size"] = args.image_size
-    hyperparams["group"] = args.group
-    hyperparams["epochs"] = args.epochs
-    hyperparams["num_classes"] = len(os.listdir(os.path.join(args.train_directory, args.group)))
+    hyperparams["num_classes"] = len(os.listdir(os.path.join(hyperparams["train_directory"], hyperparams["group"])))
 
-    if args.pretrained:
+    if hyperparams["pretrained"]:
         hyperparams["pretrained"] = True
     if args.pad:
         hyperparams["pad"] = True
@@ -79,7 +75,7 @@ def main():
 def run_evaluation(group_name, num_classes, checkpoint=None):
     arch = hyperparams["architecture"]
     pretrained = hyperparams["pretrained"]
-    lr = hyperparams["learning_rate"]
+    lr = hyperparams["lr"]
     momentum = hyperparams["momentum"]
     weight_decay = hyperparams["weight_decay"]
     batch_size = hyperparams["batch_size"]
@@ -87,7 +83,7 @@ def run_evaluation(group_name, num_classes, checkpoint=None):
     epochs = hyperparams["epochs"]
     num_classes = num_classes
 
-    model = Model(group_name, num_classes, pretrained=pretrained, eval=True)
+    model = Model(group_name, num_classes, pretrained=pretrained, eval=True, cpu=not args.gpu)
     model.load_model(checkpoint)
     optimizer = model.optimizer
 
@@ -130,14 +126,14 @@ def run_training(group_name, num_classes, resume=False):
 
     arch = hyperparams["architecture"]
     pretrained = hyperparams["pretrained"]
-    lr = hyperparams["learning_rate"]
+    lr = hyperparams["lr"]
     momentum = hyperparams["momentum"]
     weight_decay = hyperparams["weight_decay"]
     batch_size = hyperparams["batch_size"]
     workers = hyperparams["workers"]
     epochs = hyperparams["epochs"]
 
-    model = Model(group_name, num_classes, pretrained=pretrained)
+    model = Model(group_name, num_classes, pretrained=pretrained, cpu=not args.gpu)
 
     if resume:
         latest_model = get_latest_model(group_name)
@@ -378,7 +374,7 @@ class ProgressMeter(object):
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = hyperparams["learning_rate"]
+    lr = hyperparams["lr"]
     lr = lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -397,13 +393,13 @@ def accuracy(output, target):
         correct = correct.view(-1).float().sum(0, keepdim=True)
         return correct.mul_(100.0 / batch_size)
 
-def run_training(arguments):
+def run_resnet_training(arguments):
     global hyperparams
     global args
     args = arguments
-    hyperparams = dict(arguments.__dict__)
-    logger.debug("hello")
-    logger.debug(hyperparams)
+    hyperparams = {key:value for key, value in arguments.__dict__.items() if not key.startswith('__') and not callable(key)} 
+    print("HELLO")
+    print(hyperparams)
     main()
 
 if __name__ == '__main__':
