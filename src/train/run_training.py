@@ -39,9 +39,16 @@ def run_training(args: TrainArgs):
         "project": args.wandb_project,
     })
 
+    # if all category ids specificed, then get taxonomy and iterate through categories
+    category_ids = args.category_ids
+    if args.all_categories:
+        wandb_api.artifact(args.taxonomy_artifact_identifier).download(args.save_dir)
+        taxonomy = Taxonomy.from_csv(join(args.save_dir, "taxonomy.csv"))
+        category_ids = [node.category_id for node, _ in taxonomy.iter(skip_leaves=True)]
+
     # process datasets
     datasets = []
-    for category_id in args.category_ids:
+    for category_id in category_ids:
         # create dir for category's dataset
         data_dir = join(args.save_dir, category_id, "data")
         Path(data_dir).mkdir(parents=True, exist_ok=True)
@@ -84,7 +91,10 @@ def run_training(args: TrainArgs):
             "cls_dropout": args.cls_dropout,
             "cls_hidden_dim": args.cls_hidden_dim
         }
-        run = wandb.init(project=args.wandb_project, job_type="training", config=wandb_config, reinit=True)
+        run = wandb.init(project=args.wandb_project, 
+                         job_type="training", 
+                         config=wandb_config, 
+                         reinit=True)
 
         # mark dataset artifact as input to run
         run.use_artifact(f"dataset-{category_id}:latest")
@@ -132,7 +142,12 @@ def run_training(args: TrainArgs):
         # Track model and results
         upload_checkpoint(run, category_id, model_dir)
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
+
+        # delete unwanted parts of summary
         del wandb.summary["learning rate"]  # will be in config
+        del wandb.summary["accuracy"]       # accuracy of final batch doesn't say much
+        del wandb.summary["loss"]           # loss of final batch doesn't say much
+
         wandb.summary.update({
             "test loss": test_loss,
             "test accuracy": test_acc,

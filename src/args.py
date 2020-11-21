@@ -17,7 +17,7 @@ class CommonArgs(Tap):
     _timestamp: str = str(datetime.now().strftime("%Y%m%d-%H%M%S"))
     """Timestampe at command run time. Set in process_args"""
 
-    wandb_project: str = "doordash"
+    wandb_project: str = "main"
     """Name of W&B project"""
 
     @property

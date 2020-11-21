@@ -20,10 +20,52 @@ from transformers import DistilBertTokenizer
 def run_batch_prediction(args: BatchPredictArgs):
     """
     Construct hierarchy of models and run predictions.
-    For now, hardcode L1, L2
     """
-    logger = DefaultLogger()
-    Path(args.save_dir).mkdir(parents=True, exist_ok=True)  # create logging dir
+    # dirs to hold model, data
+    model_dir = join(args.save_dir, "model")
+    data_dir = join(args.save_dir, "data")
+    
+    # automatically makes args.save_dir
+    Path(model_dir).mkdir(parents=True)
+    Path(data_dir).mkdir(parents=True)
+
+    # initialize wandb run
+    api = wandb.Api({"project": args.wandb_project})
+    wandb_config = {
+        "model_identifier": args.model_artifact_identifier
+    }
+    run = wandb.init(project=args.wandb_project, job_type="taxonomy_eval", config=wandb_config)
+
+    # download and read models
+    for node, path in taxonomy.iter():
+        # make dir for category's model
+        category_model_dir = join(model_dir, node.category_id)
+        Path(category_model_dir).mkdir(parents=True)
+
+        # download model and load
+        model_identifier = "{node.model_id}:latest"
+        artifact = api.artifact(model_identifier).download(category_model_dir)
+        model, tokenizer = load_checkpoint(model_dir)
+
+        # download and read test data
+        test_data_artifact_identifier = f"dataset-{node.category_id}:latest"
+        artifact = api.artifact(test_data_artifact_identifier).download(data_dir)
+        test_data = pd.read_csv(join(data_dir, "test.csv"))
+
+        # mark artifacts as input to run
+        run.use_artifact(model_identifier)
+        run.use_artifact(test_data_artifact_identifier)
+        
+        # assign runtime node utilities
+        node.test_data = test_data
+        node.model = model
+        node.tokenizer = tokenizer
+        node.labels = labels
+
+    # merge datasets
+    dataset = pd.DataFrame()
+    for node, path in taxonomy.iter():
+        pass 
 
     # get raw test data
     test_data = pd.read_csv(args.test_path)
