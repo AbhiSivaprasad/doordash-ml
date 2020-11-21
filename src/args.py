@@ -60,12 +60,16 @@ class TrainArgs(CommonArgs):
     """Size of test split"""
     taxonomy_path: str = None
     """Path to taxonomy mapping categories to class ids"""
-    category_ids: List[str]
+    category_ids: List[str] = None
     """List of category ids to train models for"""
+    all_categories: bool = False
+    """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
 
     # W & B args
     train_data_filename: str = "train.csv"
     """File name of train data in dataset artifact"""
+    taxonomy_artifact_identifier: str = None
+    """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
 
     # Model args
     model_name: str
@@ -89,11 +93,17 @@ class TrainArgs(CommonArgs):
         if not self.train_size + self.valid_size + self.test_size == 1:
             raise ValueError("train_size, valid_size, test_size must sum to 1")
 
+    def validate_categories(self):
+        # if "all categories" option is set then taxonomy must be passed
+        if self.all_categories and self.taxonomy_artifact_identifier is None:
+            raise ValueError("To run on all categories, specify taxonomy")
+
     def process_args(self) -> None:
         super(TrainArgs, self).process_args()
        
         # validators
         self.validate_split_sizes()
+        self.validate_categories()
 
 
 class CommonPredictArgs(CommonArgs):

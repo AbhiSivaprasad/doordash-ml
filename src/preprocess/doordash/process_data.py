@@ -27,7 +27,7 @@ class PreprocessArgs(Tap):
     # W&B args
     upload_wandb: bool = False
     """Upload processed dataset to W&B"""
-    project: str = "doordash"
+    project: str = "main"
     """Name of project in W&B"""
     raw_dataset_artifact_identifier: str = "dataset-doordash-raw:latest"
     """Name of raw dataset artifact in W&B"""
@@ -75,10 +75,15 @@ def preprocess(args: PreprocessArgs):
     # add data source identifier (wandb id of processed dataset)
     latest_artifact_identifier = get_latest_artifact_identifier(
         api, artifact_identifier=f"{args.processed_dataset_artifact_name}:latest")
-
+    
     # If no artifact found then v0 will be created
     if latest_artifact_identifier is None:
         latest_artifact_identifier = f"{args.processed_dataset_artifact_name}:v0"
+    else:
+        parts = latest_artifact_identifier.split(":")
+        version_alias = parts.pop()
+        version_number = int(version_alias[1:])
+        latest_artifact_identifier = ":".join(parts + [f"v{version_number + 1}"])
 
     # full artifact identifier with version of processed dataset, which is about to be created, assigned as source
     df = df.assign(Source=f"{args.project}/{latest_artifact_identifier}")
@@ -104,10 +109,10 @@ def preprocess(args: PreprocessArgs):
     # clean item names
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
 
-    # split in train, test
-    df_train, df_test = np.split(df.sample(frac=1), [
-        int(args.train_size * len(df)), 
-    ])
+    # split by business for better train/test distribution
+    test_mask = df["Business"].isin(["7-Eleven", "CVS", "Kroger"])
+    df_train = df[~test_mask]
+    df_test = df[test_mask] 
 
     # resets row numbers
     df_train.reset_index(drop=True, inplace=True)
@@ -122,15 +127,19 @@ def preprocess(args: PreprocessArgs):
     write_data_split(train_datasets, args.write_dir, "train")
     write_data_split(test_datasets, args.write_dir, "test")
 
+    # write whole dataset directly as files
+    df_train.to_csv(join(args.write_dir, "all_train.csv"))
+    df_test.to_csv(join(args.write_dir, "all_test.csv"))
+
     # log processed dataset to W&B
     if args.upload_wandb:
-        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='dataset')
+        artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='source-dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
 
         # log per category artifacts
         for category_id in train_datasets.keys():
-            artifact = wandb.Artifact(f"dataset-{category_id}", type='dataset')
+            artifact = wandb.Artifact(f"dataset-{category_id}", type='category-dataset')
             artifact.add_file(join(args.write_dir, "train", category_id, "train.csv"))
             artifact.add_file(join(args.write_dir, "test", category_id, "test.csv"))
             run.log_artifact(artifact)
