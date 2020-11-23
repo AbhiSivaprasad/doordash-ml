@@ -82,6 +82,7 @@ def run_training(args: TrainArgs):
 
         # initialize W&B run
         wandb_config = {
+            "category_id": category_id,
             "train_dataset_size": len(data_splits[0]),
             "num_epochs": args.epochs,
             "batch_size": args.train_batch_size,
@@ -113,7 +114,7 @@ def run_training(args: TrainArgs):
         ]
 
         # pytorch data loaders
-        train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size)
+        train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size, shuffle=True)
         valid_dataloader = DataLoader(valid_data, batch_size=args.predict_batch_size)
         test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
