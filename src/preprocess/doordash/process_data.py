@@ -1,6 +1,9 @@
+import wandb
 import sys
 import wandb
+import boto3
 import random
+import validators
 import numpy as np
 import pandas as pd
 
@@ -14,6 +17,8 @@ from tap import Tap
 from src.api.wandb import get_latest_artifact_identifier
 from src.data.taxonomy import Taxonomy
 from src.utils import set_seed
+from src.preprocess.image_utils import download_images_from_urls, upload_directory_to_s3 
+from src.preprocess.utils import hash_string
 
 
 class PreprocessArgs(Tap):
@@ -23,6 +28,10 @@ class PreprocessArgs(Tap):
     """Path to directory to download artifacts"""
     train_size: float = 0.9
     """Size of train dataset as a proportion of total dataset"""
+    download_images: bool = False
+    """Download images from urls in dataset and store"""
+    image_bucket_name: str = "glisten-images"
+    """Name of bucket with images. Used if download_images is True"""
 
     # W&B args
     upload_wandb: bool = False
@@ -69,8 +78,8 @@ def preprocess(args: PreprocessArgs):
 
     # filter & rename columns
     # drop vendor ids, they're unreliable. Fine because names are unique
-    df = df[['Business', 'item_name', 'l1', 'l2']]
-    df.columns = ['Business', 'Name', 'L1', 'L2']
+    df = df[['Business', 'item_name', 'l1', 'l2', 'photo']]
+    df.columns = ['Business', 'Name', 'L1', 'L2', 'Image URL']
 
     # add data source identifier (wandb id of processed dataset)
     latest_artifact_identifier = get_latest_artifact_identifier(
@@ -111,8 +120,32 @@ def preprocess(args: PreprocessArgs):
 
     # split by business for better train/test distribution
     test_mask = df["Business"].isin(["7-Eleven", "CVS", "Kroger"])
-    df_train = df[~test_mask]
-    df_test = df[test_mask] 
+
+    # validate urls
+    valid_urls_mask = df["Image URL"].apply(lambda x: bool(validators.url(str(x))))
+    df.loc[~valid_urls_mask, "Image URL"] = np.nan 
+
+    # compute file names as a hash of urls
+    df["Image Name"] = df["Image URL"].apply(
+        lambda x: f"{hash_string(x)}.jpeg" if not pd.isnull(x) else np.nan)
+
+    # download images to s3
+    if args.download_images:
+        image_dir = join(args.download_dir, "images")
+        makedirs(image_dir)
+
+        # download images
+        print("Downloading images...")
+        download_images_from_urls(list(df.loc[valid_urls_mask]["Image URL"]),
+                                  image_dir,
+                                  list(df.loc[valid_urls_mask]["Image Name"]))
+    
+        print("Uploading images to s3...")
+        upload_s3(df, taxonomy, valid_urls_mask, test_mask, image_dir, args)
+
+    # split data using mask
+    df_train = df.loc[~test_mask]
+    df_test = df.loc[test_mask] 
 
     # resets row numbers
     df_train.reset_index(drop=True, inplace=True)
@@ -143,6 +176,32 @@ def preprocess(args: PreprocessArgs):
             artifact.add_file(join(args.write_dir, "train", category_id, "train.csv"))
             artifact.add_file(join(args.write_dir, "test", category_id, "test.csv"))
             run.log_artifact(artifact)
+
+
+def upload_s3(df, taxonomy, valid_urls_mask, test_mask, image_dir, args):
+    s3_client = boto3.client('s3')
+    
+    for node, path in taxonomy.iter(skip_leaves=True):
+        # first node in path (root) has depth 0
+        depth = len(path) - 1 
+        category_id = node.category_id
+
+        # if root, then don't filter rows
+        category_mask = (df[f"L{depth} ID"] == category_id) if depth > 0 else pd.Series([True] * len(df))
+        train_bucket_folder = join("train", category_id)
+        test_bucket_folder = join("test", category_id)
+
+        upload_directory_to_s3(s3_client=s3_client, 
+                               bucket_name=args.image_bucket_name, 
+                               object_prefix=train_bucket_folder, 
+                               dirpath=image_dir,
+                               filenames=list(df.loc[valid_urls_mask & ~test_mask & category_mask]["Image Name"]))
+
+        upload_directory_to_s3(s3_client=s3_client, 
+                               bucket_name=args.image_bucket_name, 
+                               object_prefix=test_bucket_folder, 
+                               dirpath=image_dir,
+                               filenames=list(df.loc[valid_urls_mask & test_mask & category_mask]["Image Name"]))
 
 
 def write_data_split(data_split, write_dir: str, split_name: str):
@@ -257,8 +316,8 @@ def split_dataset(df, taxonomy):
 
         # If depth = 0 (root) then we want all L1s which is the entire dataset
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
-        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name", "Source"]]
-        dataset.columns = ["Business", "Category Name", "Category ID", "Name", "Source"]
+        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name", "Source", "Image Name"]]
+        dataset.columns = ["Business", "Category Name", "Category ID", "Name", "Source", "Image Name"]
         datasets[node.category_id] = dataset
     
     return datasets
