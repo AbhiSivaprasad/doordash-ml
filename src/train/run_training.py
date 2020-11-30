@@ -49,16 +49,8 @@ def run_training(args: TrainArgs):
     # process datasets
     datasets = []
     for category_id in category_ids:
-        # create dir for category's dataset
-        data_dir = join(args.save_dir, category_id, "data")
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-
-        # download category's dataset
-        dataset_artifact_name = f"dataset-{category_id}:latest"
-        wandb_api.artifact(dataset_artifact_name).download(data_dir)
-        
         # read in train dataset for category
-        dataset = pd.read_csv(join(data_dir, args.train_data_filename))
+        dataset = pd.read_csv(join(data_dir, category_id, args.train_data_filename))
 
         # encode target variable and return labels dict (category id --> class id)
         labels = encode_target_variable(dataset)
