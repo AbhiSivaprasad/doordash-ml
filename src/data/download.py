@@ -3,6 +3,58 @@ import wandb
 from os import makedirs, listdir
 from os.path import join, isdir
 
+from tap import Tap
+from copy import copy
+from tempfile import TemporaryDirectory
+
+
+def DownloadArgs(Tap):
+    sources: List[str] = []
+    """
+    List of W&B artifact identifiers to source datasets
+    Sets both train sources and test sources to passed list
+    """
+    train_sources: List[str] = []
+    """
+    List of W&B artifact identifiers to source datasets
+    The train portion of these datasets will be merged
+    """
+    test_sources: List[str] = []
+    """
+    List of W&B artifact identifiers to source datasets
+    The train portion of these datasets will be merged
+    """
+    
+    write_dir: str
+    """Directory to store merged datasets"""
+    save_dir: str = None
+    """Directory to download source datasets"""
+    wandb_project: str = "main"
+    """Name of W&B project with source datasets"""
+
+    def validate_sources():
+        if self.sources and (self.train_sources or self.test_sources):
+            raise ValueError("If sources is specified, train_sources and test_sources should not")
+
+        if not (self.sources or self.train_sources or self.test_sources):
+            raise ValueError("At least one source must be specified")
+
+    def process_args(self):
+        super(DownloadArgs, self).process_args() 
+
+        validate_sources()
+
+        if self.sources:
+            self.train_sources = self.sources.copy()
+            self.test_sources = self.sources.copy()
+
+        # Create temporary directory as save directory if not provided
+        global temp_dir  # Prevents the temporary directory from being deleted upon function return
+        if self.save_dir is None:
+            temp_dir = TemporaryDirectory()
+            self.save_dir = temp_dir.name
+
+
 def download(args: DownloadArgs):
     """Download dataset from specified sources and merge"""
     all_sources = set(args.train_sources + args.test_sources)
@@ -26,8 +78,8 @@ def download(args: DownloadArgs):
                         for test_source in args.test_sources]
 
     # create separate train, test dirs to save merged datasets
-    train_write_dir = join(write_dir, "train")
-    test_write_dir = join(write_dir, "test")
+    train_write_dir = join(args.write_dir, "train")
+    test_write_dir = join(args.write_dir, "test")
 
     makedirs(train_write_dir)
     makedirs(test_write_dir)
