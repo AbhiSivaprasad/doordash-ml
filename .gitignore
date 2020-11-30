@@ -1,7 +1,6 @@
 *.swp
 __pycache__/
 logs/
-data/
 tmp/
 */.ipynb_checkpoints/
 wandb/
