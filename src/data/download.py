@@ -1,18 +1,21 @@
 import wandb
 
+import pandas as pd
 from os import makedirs, listdir
 from os.path import join, isdir
 
+from typing import List
 from tap import Tap
 from copy import copy
 from tempfile import TemporaryDirectory
+from pathlib import Path
 
 
-def DownloadArgs(Tap):
+class DownloadArgs(Tap):
     sources: List[str] = []
     """
     List of W&B artifact identifiers to source datasets
-    Sets both train sources and test sources to passed list
+    Adds sources to both train sources and test sources
     """
     train_sources: List[str] = []
     """
@@ -32,21 +35,18 @@ def DownloadArgs(Tap):
     wandb_project: str = "main"
     """Name of W&B project with source datasets"""
 
-    def validate_sources():
-        if self.sources and (self.train_sources or self.test_sources):
-            raise ValueError("If sources is specified, train_sources and test_sources should not")
-
+    def validate_sources(self):
         if not (self.sources or self.train_sources or self.test_sources):
             raise ValueError("At least one source must be specified")
 
     def process_args(self):
         super(DownloadArgs, self).process_args() 
 
-        validate_sources()
+        self.validate_sources()
 
         if self.sources:
-            self.train_sources = self.sources.copy()
-            self.test_sources = self.sources.copy()
+            self.train_sources += self.sources.copy()
+            self.test_sources += self.sources.copy()
 
         # Create temporary directory as save directory if not provided
         global temp_dir  # Prevents the temporary directory from being deleted upon function return
@@ -81,36 +81,37 @@ def download(args: DownloadArgs):
     train_write_dir = join(args.write_dir, "train")
     test_write_dir = join(args.write_dir, "test")
 
-    makedirs(train_write_dir)
-    makedirs(test_write_dir)
+    Path(train_write_dir).mkdir(parents=True, exist_ok=True)
+    Path(test_write_dir).mkdir(parents=True, exist_ok=True)
 
     # merge datasets are write to output dir
-    merge(train_source_dirs, train_write_dir, "train.csv")
-    merge(test_source_dirs, test_write_dir, "test.csv")
+    merge(train_source_dirs, train_write_dir, "train", "train.csv")
+    merge(test_source_dirs, test_write_dir, "test", "test.csv")
 
 
-def merge(dir_paths: List[str], write_dir: str, data_filename: str = "train.csv"):
+def merge(dir_paths: List[str], write_dir: str, data_split: str = "train", data_filename: str = "train.csv"):
     # key = category_id, value = merged dataset for category
     datasets = {}
 
     for dir_path in dir_paths:
-        for category_name in listdir(dir_path):
+        data_split_path = join(dir_path, data_split)
+        for category_id in listdir(data_split_path):
             # skip files
-            category_dir = join(dir_path, category_name)
+            category_dir = join(data_split_path, category_id)
             if not isdir(category_dir):
                 continue
         
             # read data from /category_name/data_filename
             df = pd.read_csv(join(category_dir, data_filename))
             
-            if category_name in datasets:
+            if category_id in datasets:
                 # merge df with stored dataset
-                df = pd.concat([datasets[category_name], df])
+                df = pd.concat([datasets[category_id], df])
 
             # create or update dataset
-            datasets[category_name] = df
+            datasets[category_id] = df
 
     # write datasets to dir
-    for category_name, dataset in datasets.items():
-        makedirs(join(write_dir, category_name))
-        df.to_csv(join(write_dir, category_name, data_filename))
+    for category_id, dataset in datasets.items():
+        makedirs(join(write_dir, category_id))
+        dataset.to_csv(join(write_dir, category_id, data_filename))

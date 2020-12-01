@@ -64,6 +64,8 @@ class TrainArgs(CommonArgs):
     """List of category ids to train models for"""
     all_categories: bool = False
     """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
+    data_dir: str
+    """Path to directory with data"""
 
     # W & B args
     train_data_filename: str = "train.csv"
