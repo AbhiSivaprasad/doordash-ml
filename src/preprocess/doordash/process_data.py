@@ -85,9 +85,6 @@ def preprocess(args: PreprocessArgs):
         version_number = int(version_alias[1:])
         latest_artifact_identifier = ":".join(parts + [f"v{version_number + 1}"])
 
-    # full artifact identifier with version of processed dataset, which is about to be created, assigned as source
-    df = df.assign(Source=f"{args.project}/{latest_artifact_identifier}")
-
     # clean mislabeled categories and ensure alignment with taxonomy
     fix_mislabeled_categories(df)
  
@@ -128,21 +125,14 @@ def preprocess(args: PreprocessArgs):
     write_data_split(test_datasets, args.write_dir, "test")
 
     # write whole dataset directly as files
-    df_train.to_csv(join(args.write_dir, "all_train.csv"))
-    df_test.to_csv(join(args.write_dir, "all_test.csv"))
+    df_train.to_csv(join(args.write_dir, "all_train.csv"), index=False)
+    df_test.to_csv(join(args.write_dir, "all_test.csv"), index=False)
 
     # log processed dataset to W&B
     if args.upload_wandb:
         artifact = wandb.Artifact(args.processed_dataset_artifact_name, type='source-dataset')
         artifact.add_dir(args.write_dir)
         run.log_artifact(artifact)
-
-        # log per category artifacts
-        for category_id in train_datasets.keys():
-            artifact = wandb.Artifact(f"dataset-{category_id}", type='category-dataset')
-            artifact.add_file(join(args.write_dir, "train", category_id, "train.csv"))
-            artifact.add_file(join(args.write_dir, "test", category_id, "test.csv"))
-            run.log_artifact(artifact)
 
 
 def write_data_split(data_split, write_dir: str, split_name: str):
@@ -154,7 +144,7 @@ def write_data_split(data_split, write_dir: str, split_name: str):
         makedirs(category_dir)
 
         # write dataset
-        dataset.to_csv(join(category_dir, f"{split_name}.csv"))
+        dataset.to_csv(join(category_dir, f"{split_name}.csv"), index=False)
  
 
 def fix_mislabeled_categories(df):
@@ -257,8 +247,8 @@ def split_dataset(df, taxonomy):
 
         # If depth = 0 (root) then we want all L1s which is the entire dataset
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
-        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name", "Source"]]
-        dataset.columns = ["Business", "Category Name", "Category ID", "Name", "Source"]
+        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name"]]
+        dataset.columns = ["Business", "Category Name", "Category ID", "Name"]
         datasets[node.category_id] = dataset
     
     return datasets
