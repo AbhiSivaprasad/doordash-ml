@@ -55,7 +55,11 @@ def train(model: nn.Module,
         valid_preds, valid_probs = predict(model, valid_dataloader, device, return_probs=True)
         val_acc = evaluate_predictions(valid_preds, valid_targets.cpu().numpy(), logger)
         val_loss = F.nll_loss(torch.log(valid_probs), valid_targets)
-        logger.debug(f"Validation Accuracy: {val_acc}, Loss: {val_loss}")
+
+        wandb.log({
+            "validation loss": val_loss,
+            "validation accuracy": val_acc
+        }, commit=False)
 
         # if model is better then save
         if best_loss is None or val_loss < best_loss:
@@ -101,9 +105,8 @@ def train_epoch(model: torch.nn.Module,
           
         # log to W&B, autotracks iter
         wandb.log({
-            "loss": loss.item(),
-            "accuracy": (preds==targets).sum().item() / targets.size(0),
-            "learning rate": learning_rate
+            "train loss": loss.item(),
+            "train accuracy": (preds==targets).sum().item() / targets.size(0),
         })
  
         # backprop

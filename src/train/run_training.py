@@ -50,7 +50,7 @@ def run_training(args: TrainArgs):
     datasets = []
     for category_id in category_ids:
         # read in train dataset for category
-        dataset = pd.read_csv(join(data_dir, category_id, args.train_data_filename))
+        dataset = pd.read_csv(join(args.data_dir, "train", category_id, args.train_data_filename))
 
         # encode target variable and return labels dict (category id --> class id)
         labels = encode_target_variable(dataset)
@@ -137,9 +137,8 @@ def run_training(args: TrainArgs):
         logger.debug(f"Test Accuracy: {test_acc}, Loss: {test_loss}")
 
         # delete unwanted parts of summary
-        del wandb.summary["learning rate"]  # will be in config
-        del wandb.summary["accuracy"]       # accuracy of final batch doesn't say much
-        del wandb.summary["loss"]           # loss of final batch doesn't say much
+        del wandb.summary["train accuracy"]       # accuracy of final batch doesn't say much
+        del wandb.summary["train loss"]           # loss of final batch doesn't say much
 
         wandb.summary.update({
             "test loss": test_loss,
