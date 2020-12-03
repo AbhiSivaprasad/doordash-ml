@@ -20,56 +20,70 @@ def run_prediction(args: PredictArgs):
     """Run predictions on a dataset"""
     # dirs to hold model, data
     model_dir = join(args.save_dir, "model")
-    
-    # automatically makes args.save_dir
-    Path(model_dir).mkdir(parents=True)
 
     # initialize wandb run
     api = wandb.Api({"project": args.wandb_project})
-    wandb_config = {
-        "model_identifier": args.model_artifact_identifier,
-        "category_id": args.category_id
-    }
-    run = wandb.init(project=args.wandb_project, job_type="eval", config=wandb_config)
 
-    # mark data sources as input to run
-    run.use_artifact(args.model_artifact_identifier)
-    for source in args.data_sources:
-        run.use_artifact(source)
+    # process artifact identifier for better logging ("artifact:latest" --> "artifact:v6")
+    full_eval_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, source) 
+                                     for source in args.eval_dataset_identifiers]
 
-    # download and read model
-    artifact = api.artifact(args.model_artifact_identifier).download(model_dir)
-    model, tokenizer = load_checkpoint(model_dir)
+    for i, category_id in enumerate(args.category_ids):
+        # dir to hold category model
+        category_dir = join(model_dir, category_id)
+        Path(category_dir).mkdir(parents=True)  # makes parent directories
 
-    # download and read test data
-    test_data = pd.read_csv(join(args.data_dir, "test.csv"))
+        # models are specified with args.model_artifact_identifiers
+        # or if just category ids supplied then pull the latest model for each
+        model_artifact_identifier = (args.model_artifact_identifiers[i] 
+                                     if args.model_artifact_identifiers 
+                                     else f"model-{category_id}:latest")
 
-    # encode a target variable with the given labels
-    with open(join(model_dir, "labels.json")) as f:
-        labels = json.load(f)
+        wandb_config = {
+            "model_identifier": full_model_identifier,
+            "eval_datasets": full_eval_dataset_identifiers,
+            "category_id": category_id
+        }
+        run = wandb.init(project=args.wandb_project, job_type="eval", config=wandb_config, reinit=True)
 
-    encode_target_variable_with_labels(test_data, labels)
+        # mark data sources as input to run
+        run.use_artifact(model_artifact_identifier)
+        for eval_dataset_identifier in full_eval_dataset_identifiers:
+            run.use_artifact(eval_dataset_identifier)
 
-    # move model to GPU
-    model.to(args.device)
+        # download and read model
+        artifact = api.artifact(model_artifact_identifier).download(category_dir)
+        model, tokenizer = load_checkpoint(category_dir)
 
-    # assumes same tokenizer used on all models
-    test_data = BertDataset(test_data, tokenizer, args.max_seq_length)
-    test_dataloader = DataLoader(test_data, batch_size=args.batch_size)
+        # download and read test data
+        test_data = pd.read_csv(join(args.data_dir, category_id, "test.csv"))
 
-    # get predictions and prediction probabilities
-    preds, probs = predict(model, test_dataloader, args.device, return_probs=True)
+            # encode a target variable with the given labels
+        with open(join(category_dir, "labels.json")) as f:
+            labels = json.load(f)
 
-    # evaluate
-    test_acc = evaluate_predictions(preds, test_data.targets.values)
-    test_loss = F.nll_loss(torch.log(probs), 
-                           torch.from_numpy(test_data.targets.values).to(args.device))
-    
-    # log results
-    run.summary.update({
-        "test accuracy": test_acc,
-        "test loss": test_loss,
-    })
-    
-    # add preds in file
-     
+        encode_target_variable_with_labels(test_data, labels)
+
+        # move model to GPU
+        model.to(args.device)
+
+        # assumes same tokenizer used on all models
+        test_data = BertDataset(test_data, tokenizer, args.max_seq_length)
+        test_dataloader = DataLoader(test_data, batch_size=args.batch_size)
+
+        # get predictions and prediction probabilities
+        preds, probs = predict(model, test_dataloader, args.device, return_probs=True)
+
+        # evaluate
+        test_acc = evaluate_predictions(preds, test_data.targets.values)
+        test_loss = F.nll_loss(torch.log(probs), 
+                               torch.from_numpy(test_data.targets.values).to(args.device))
+        
+        # log results
+        run.summary.update({
+            "test accuracy": test_acc,
+            "test loss": test_loss,
+        })
+
+        # close W & B logging for run
+        run.finish()

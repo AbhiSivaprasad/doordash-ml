@@ -123,15 +123,18 @@ class CommonPredictArgs(CommonArgs):
 class PredictArgs(CommonPredictArgs):
     data_dir: str
     """Path to directory with test.csv file"""
-    data_sources: List[str]
+    eval_dataset_identifiers: List[str]
     """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
-    category_id: str
-    """Category id to predict for"""
+    category_ids: str
+    """Category ids to predict for"""
     autoload_best_model: bool = False
     """Recursively sweep models_dir for the model with highest validation score
     if False then models_dir must directly contain the model"""
-    model_artifact_identifier: str
-    """W&B identifier for desired model artifact"""
+    model_artifact_identifiers: str = []
+    """
+    W&B identifiers for desired model artifacts, aligning to category_ids.
+    If empty then latest model for each category id pulled
+    """
 
 
 class BatchPredictArgs(CommonPredictArgs):

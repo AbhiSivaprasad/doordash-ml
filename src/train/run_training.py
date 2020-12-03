@@ -23,6 +23,7 @@ from ..models.models import get_huggingface_model, get_wandb_model
 from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
+from ..api.wandb import get_latest_artifact_identifier
 
 
 def run_training(args: TrainArgs):
@@ -42,7 +43,8 @@ def run_training(args: TrainArgs):
     })
 
     # process data sources for better logging ("artifact:latest" --> "artifact:v6")
-    data_sources = [get_latest_artifact_identifier(source) for source in args.data_sources]
+    data_sources = [get_latest_artifact_identifier(wandb_api, source) 
+                    for source in args.data_sources]
 
     # if all category ids specificed, then get taxonomy and iterate through categories
     category_ids = args.category_ids
@@ -92,7 +94,7 @@ def run_training(args: TrainArgs):
             "cls_dropout": args.cls_dropout,
             "cls_hidden_dim": args.cls_hidden_dim,
             "labels": labels,
-            "sources": data_sources
+            "train_datasets": data_sources
         }
         run = wandb.init(project=args.wandb_project, 
                          name=run_id,
