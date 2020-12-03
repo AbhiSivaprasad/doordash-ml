@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
+from time import time
 
 from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
 from ..data.data import split_data, encode_target_variable
@@ -18,7 +19,7 @@ from ..data.taxonomy import Taxonomy
 from ..data.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
-from ..models.models import get_model
+from ..models.models import get_huggingface_model, get_wandb_model
 from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
@@ -27,6 +28,7 @@ from ..eval.evaluate import evaluate_predictions
 def run_training(args: TrainArgs):
     # create logging dir
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
+    timestamp = str(int(time()))
 
     # set seed for reproducibility
     set_seed(args.seed)
@@ -38,6 +40,9 @@ def run_training(args: TrainArgs):
     wandb_api = wandb.Api({
         "project": args.wandb_project,
     })
+
+    # process data sources for better logging ("artifact:latest" --> "artifact:v6")
+    data_sources = [get_latest_artifact_identifier(source) for source in args.data_sources]
 
     # if all category ids specificed, then get taxonomy and iterate through categories
     category_ids = args.category_ids
@@ -73,7 +78,10 @@ def run_training(args: TrainArgs):
             json.dump(labels, f)
 
         # initialize W&B run
+        run_id = str(int(time()))
         wandb_config = {
+            "id": run_id,
+            "batch_timestamp": timestamp,
             "category_id": category_id,
             "train_dataset_size": len(data_splits[0]),
             "num_epochs": args.epochs,
@@ -82,19 +90,32 @@ def run_training(args: TrainArgs):
             "patience": args.patience,
             "max_seq_length": args.max_seq_length,
             "cls_dropout": args.cls_dropout,
-            "cls_hidden_dim": args.cls_hidden_dim
+            "cls_hidden_dim": args.cls_hidden_dim,
+            "labels": labels,
+            "sources": data_sources
         }
         run = wandb.init(project=args.wandb_project, 
+                         name=run_id,
                          job_type="training", 
                          config=wandb_config, 
                          reinit=True)
 
-        # mark dataset artifact as input to run
-        run.use_artifact(f"dataset-{category_id}:latest")
+        # mark data sources as input to run
+        for source in data_sources:
+            run.use_artifact(source)
 
         # build model based on # of target classes
         num_classes = len(labels)
-        model, tokenizer = get_model(num_classes, args)
+
+        # get model
+        if args.model_source == "wandb":
+            # mark model artifact as input to run 
+            run.use_artifact(args.model_name)
+            model, tokenizer = get_wandb_model(wandb_api, args.model_name)
+        elif args.model_source == "huggingface":
+            model, tokenizer = get_huggingface_model(num_classes, args)
+        else:
+            raise ValueError("model type not supported")
 
         # tracks model properties in W&B
         wandb.watch(model, log="all", log_freq=25)  

@@ -4,6 +4,7 @@ import torch
 from datetime import datetime
 from tempfile import TemporaryDirectory
 from typing import List, Optional
+from typing_extensions import Literal
 from tap import Tap
 
 
@@ -66,6 +67,8 @@ class TrainArgs(CommonArgs):
     """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
     data_dir: str
     """Path to directory with data"""
+    data_sources: List[str]
+    """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
 
     # W & B args
     train_data_filename: str = "train.csv"
@@ -75,7 +78,9 @@ class TrainArgs(CommonArgs):
 
     # Model args
     model_name: str
-    """Name of model to train"""
+    """Name of model to train, format depends on model type"""
+    model_source: Literal["huggingface", "wandb"] = "huggingface"
+    """Source to pull model from"""
     cls_hidden_dim: int = 768
     """Size of hidden layer in classification head"""
     cls_dropout: float = 0.3
@@ -116,6 +121,10 @@ class CommonPredictArgs(CommonArgs):
  
 
 class PredictArgs(CommonPredictArgs):
+    data_dir: str
+    """Path to directory with test.csv file"""
+    data_sources: List[str]
+    """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
     category_id: str
     """Category id to predict for"""
     autoload_best_model: bool = False

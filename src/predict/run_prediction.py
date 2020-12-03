@@ -15,41 +15,40 @@ from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
 from ..args import PredictArgs
 
+
 def run_prediction(args: PredictArgs):
     """Run predictions on a dataset"""
     # dirs to hold model, data
     model_dir = join(args.save_dir, "model")
-    data_dir = join(args.save_dir, "data")
     
     # automatically makes args.save_dir
     Path(model_dir).mkdir(parents=True)
-    Path(data_dir).mkdir(parents=True)
 
     # initialize wandb run
     api = wandb.Api({"project": args.wandb_project})
     wandb_config = {
-        "model_identifier": args.model_artifact_identifier
+        "model_identifier": args.model_artifact_identifier,
+        "category_id": args.category_id
     }
     run = wandb.init(project=args.wandb_project, job_type="eval", config=wandb_config)
+
+    # mark data sources as input to run
+    run.use_artifact(args.model_artifact_identifier)
+    for source in args.data_sources:
+        run.use_artifact(source)
 
     # download and read model
     artifact = api.artifact(args.model_artifact_identifier).download(model_dir)
     model, tokenizer = load_checkpoint(model_dir)
 
     # download and read test data
-    test_data_artifact_identifier = f"dataset-{args.category_id}:latest"
-    artifact = api.artifact(test_data_artifact_identifier).download(data_dir)
-    test_data = pd.read_csv(join(data_dir, "test.csv"))
+    test_data = pd.read_csv(join(args.data_dir, "test.csv"))
 
     # encode a target variable with the given labels
     with open(join(model_dir, "labels.json")) as f:
         labels = json.load(f)
 
     encode_target_variable_with_labels(test_data, labels)
-
-    # mark used artifacts as input to run
-    run.use_artifact(args.model_artifact_identifier)
-    run.use_artifact(test_data_artifact_identifier)
 
     # move model to GPU
     model.to(args.device)
