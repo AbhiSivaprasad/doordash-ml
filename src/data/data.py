@@ -41,7 +41,7 @@ def encode_target_variable_with_labels(data: pd.DataFrame, labels: List[str]) ->
 
     # apply mapping to create target column
     data["target"] = data["Category ID"].apply(
-        lambda category_id: category_id_to_label[category_id]
+        lambda category_id: category_id_to_label[category_id] if category_id in category_id_to_label else -1
     )
 
 
