@@ -47,7 +47,7 @@ class CommonArgs(Tap):
 class TrainArgs(CommonArgs):
     seed: int = 0
     """Seed for reproducibility"""
-    max_seq_length: int = 100
+    max_seq_length: int = 256
     """Max sequence length for BERT models. Longer inputs are truncated"""
     train_batch_size: int = 16
     """Batch size for model training"""
@@ -59,16 +59,21 @@ class TrainArgs(CommonArgs):
     """Size of validation split"""
     test_size: float = 0.1
     """Size of test split"""
-    taxonomy_path: str = None
-    """Path to taxonomy mapping categories to class ids"""
     category_ids: List[str] = None
     """List of category ids to train models for"""
     all_categories: bool = False
     """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
-    data_dir: str
+    train_dir: str
     """Path to directory with data"""
-    data_sources: List[str]
-    """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
+    test_dir: str = None
+    """
+    Path to directory with test data. Dir contains one dir per category and a 'test.csv' in each
+    Automatically adds test_size to train_size
+    """
+    train_data_sources: List[str]
+    """List of W&B artifact identifiers which constructed data in train_dir. For logging."""
+    test_data_sources: List[str]
+    """List of W&B artifact identifiers which constructed data in test_dir. For logging."""
 
     # W & B args
     train_data_filename: str = "train.csv"
@@ -79,15 +84,15 @@ class TrainArgs(CommonArgs):
     # Model args
     model_name: str
     """Name of model to train, format depends on model type"""
-    model_source: Literal["huggingface", "wandb"] = "huggingface"
-    """Source to pull model from"""
+    # model_source: Literal["huggingface", "wandb"] = "huggingface"
+    # """Source to pull model from"""
     cls_hidden_dim: int = 768
     """Size of hidden layer in classification head"""
     cls_dropout: float = 0.3
     """Dropout after hidden layer activation in clhahlassification head"""
 
     # Training args
-    epochs: int = 5
+    epochs: int = 10
     """Number of epochs to train model for"""
     lr: float = 1e-5
     """Learning rate for training"""
@@ -111,6 +116,12 @@ class TrainArgs(CommonArgs):
         # validators
         self.validate_split_sizes()
         self.validate_categories()
+
+        # if test dir passed, then train data is split into (train, val) not (train, val, test)
+        # test size is added to train size by default
+        if self.test_dir is not None:
+            self.train_size += self.test_size
+            self.test_size = 0
 
 
 class CommonPredictArgs(CommonArgs):

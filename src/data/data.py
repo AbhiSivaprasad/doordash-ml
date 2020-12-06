@@ -56,10 +56,16 @@ def split_data(data: pd.DataFrame, args: TrainArgs) -> List[pd.DataFrame]:
 
     # split along two breakpoints obtaining train, val, test
     data_size = len(data)
-    data_splits = np.split(data.sample(frac=1), [
+    breakpoints = [
         int(args.train_size * data_size), 
         int((args.train_size + args.valid_size) * data_size)
-    ])
+    ]
+
+    # if no test set then remove the last breakpoint
+    if args.test_size == 0:
+        breakpoints = breakpoints[:-1]
+
+    data_splits = np.split(data.sample(frac=1), breakpoints)
     
     for data_split in data_splits:
         data_split.reset_index(drop=True, inplace=True)

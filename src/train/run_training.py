@@ -14,7 +14,7 @@ from transformers import DistilBertTokenizer
 from time import time
 
 from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
-from ..data.data import split_data, encode_target_variable
+from ..data.data import split_data, encode_target_variable, encode_target_variable_with_labels
 from ..data.taxonomy import Taxonomy
 from ..data.bert import BertDataset
 from ..args import TrainArgs
@@ -43,8 +43,11 @@ def run_training(args: TrainArgs):
     })
 
     # process data sources for better logging ("artifact:latest" --> "artifact:v6")
-    data_sources = [get_latest_artifact_identifier(wandb_api, source) 
-                    for source in args.data_sources]
+    train_data_sources = [get_latest_artifact_identifier(wandb_api, source) 
+                          for source in args.train_data_sources]
+
+    test_data_sources = [get_latest_artifact_identifier(wandb_api, source) 
+                         for source in args.test_data_sources]
 
     # if all category ids specificed, then get taxonomy and iterate through categories
     category_ids = args.category_ids
@@ -57,13 +60,19 @@ def run_training(args: TrainArgs):
     datasets = []
     for category_id in category_ids:
         # read in train dataset for category
-        dataset = pd.read_csv(join(args.data_dir, "train", category_id, args.train_data_filename))
+        dataset = pd.read_csv(join(args.train_dir, category_id, args.train_data_filename))
 
         # encode target variable and return labels dict (category id --> class id)
         labels = encode_target_variable(dataset)
 
         # train dataset splits into (train, val, test) 
         data_splits = split_data(dataset, args)
+        
+        # if separate test dir has been passed, load test data from dir
+        if args.test_dir:
+            test_data = pd.read_csv(join(args.test_dir, category_id, 'test.csv'))
+            encode_target_variable_with_labels(test_data, labels)
+            data_splits.append(test_data)
 
         # keep track of dataset, labels per category
         datasets.append((category_id, data_splits, labels))
@@ -94,8 +103,11 @@ def run_training(args: TrainArgs):
             "cls_dropout": args.cls_dropout,
             "cls_hidden_dim": args.cls_hidden_dim,
             "labels": labels,
-            "train_datasets": sorted(data_sources)  # sort so easily queryable
+            "train_datasets": sorted(train_data_sources),  # sort so easily queryable
+            "test_datasets": sorted(test_data_sources),  # sort so easily queryable
+            "separate_test_set": args.test_dir is not None  # False if test set is created by splitting train set
         }
+
         run = wandb.init(project=args.wandb_project, 
                          name=run_id,
                          job_type="training", 
@@ -103,21 +115,14 @@ def run_training(args: TrainArgs):
                          reinit=True)
 
         # mark data sources as input to run
-        for source in data_sources:
+        for source in train_data_sources + test_data_sources:
             run.use_artifact(source)
 
         # build model based on # of target classes
         num_classes = len(labels)
 
         # get model
-        if args.model_source == "wandb":
-            # mark model artifact as input to run 
-            run.use_artifact(args.model_name)
-            model, tokenizer = get_wandb_model(wandb_api, args.model_name)
-        elif args.model_source == "huggingface":
-            model, tokenizer = get_huggingface_model(num_classes, args)
-        else:
-            raise ValueError("model type not supported")
+        model, tokenizer = get_huggingface_model(num_classes, args)
 
         # tracks model properties in W&B
         wandb.watch(model, log="all", log_freq=25)  
