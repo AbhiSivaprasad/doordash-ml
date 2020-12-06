@@ -127,10 +127,12 @@ def clean_string(string):
     string = string.rstrip().lstrip()
     return string
 
+
 def get_category_id(name: str):
     with_underscores = "_".join(name.lower().split(" "))
     with_legal_chars = with_underscores.replace("&", "and")
     return with_legal_chars
+
 
 if __name__ == "__main__":
     preprocess()
