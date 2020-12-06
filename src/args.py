@@ -125,6 +125,8 @@ class PredictArgs(CommonPredictArgs):
     """Path to test directory"""
     eval_datasets: List[str]
     """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
+    train_datasets: List[str]
+    """List of W&B artifact ideentifiers of datasets used to train model. For locating appropriate model."""
     category_ids: List[str]
     """Category ids to predict for"""
     autoload_best_model: bool = False

@@ -26,22 +26,36 @@ def run_prediction(args: PredictArgs):
     # initialize wandb run
     wandb_api = wandb.Api({"project": args.wandb_project})
 
-    # models are specified with args.model_artifact_identifiers
-    # or if just category ids supplied then pull the latest model for each
-    model_artifact_identifiers = (args.model_artifact_identifiers 
-                                  if args.model_artifact_identifiers 
-                                  else [f"model-{category_id}:latest" for category_id in args.category_ids])
-
     # process artifact identifier for better logging ("artifact:latest" --> "artifact:v6")
-    full_eval_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, source) 
-                                     for source in args.eval_datasets]
+    full_eval_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, dataset) 
+                                     for dataset in args.eval_datasets]
 
-    full_model_artifact_identifiers = [get_latest_artifact_identifier(wandb_api, model_identifier) 
-                                       for model_identifier in model_artifact_identifiers]
+    full_train_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, dataset) 
+                                      for dataset in args.train_datasets]
 
+    full_model_artifact_identifiers = []
+    for category_id in args.category_ids:
+        query_filters = {
+            "config.category_id": category_id,
+            "config.train_datasets": sorted(full_train_dataset_identifiers),
+        }
+
+        runs = wandb_api.runs(path=args.wandb_project, filters=query_filters, order="+summary_metrics.test loss")
+
+        # pull output artifact from run
+        artifact = next(runs[0].logged_artifacts)
+        full_model_artifact_identifiers.append(artifact.name)
+
+        print(f"Using run {runs[0].name} for category id {category_id}")
+
+    import pdb
+    pdb.set_trace()
+
+    # important to sort lists so its easily queryable
     wandb_config = {
-        "model_identifiers": full_model_artifact_identifiers,
-        "eval_datasets": full_eval_dataset_identifiers,
+        "model_identifiers": sorted(full_model_artifact_identifiers),
+        "eval_datasets": sorted(full_eval_dataset_identifiers),
+        "train_datasets": sorted(full_train_dataset_identifiers),
         "category_ids": args.category_ids
     }
     
@@ -123,11 +137,11 @@ def run_prediction(args: PredictArgs):
 
     # also log results in summary
     run.summary.update({
-        "f{category_id} test accuracy": test_acc 
+        f"{category_id} test accuracy": test_acc 
         for category_id, test_acc in zip(args.category_ids, test_accs)
     })
     run.summary.update({
-        "f{category_id} test loss": test_loss 
+        f"{category_id} test loss": test_loss 
         for category_id, test_loss in zip(args.category_ids, test_losses)
     })
  

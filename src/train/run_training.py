@@ -94,7 +94,7 @@ def run_training(args: TrainArgs):
             "cls_dropout": args.cls_dropout,
             "cls_hidden_dim": args.cls_hidden_dim,
             "labels": labels,
-            "train_datasets": data_sources
+            "train_datasets": sorted(data_sources)  # sort so easily queryable
         }
         run = wandb.init(project=args.wandb_project, 
                          name=run_id,
