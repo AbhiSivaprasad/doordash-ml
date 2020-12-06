@@ -77,16 +77,10 @@ def download(args: DownloadArgs):
     test_source_dirs = [join(args.save_dir, test_source) 
                         for test_source in args.test_sources]
 
-    # create separate train, test dirs to save merged datasets
-    train_write_dir = join(args.write_dir, "train")
-    test_write_dir = join(args.write_dir, "test")
-
-    Path(train_write_dir).mkdir(parents=True, exist_ok=True)
-    Path(test_write_dir).mkdir(parents=True, exist_ok=True)
-
     # merge datasets are write to output dir
-    merge(train_source_dirs, train_write_dir, "train", "train.csv")
-    merge(test_source_dirs, test_write_dir, "test", "test.csv")
+    Path(args.write_dir).mkdir(parents=True)
+    merge(train_source_dirs, args.write_dir, "train", "train.csv")
+    merge(test_source_dirs, args.write_dir, "test", "test.csv")
 
 
 def merge(dir_paths: List[str], write_dir: str, data_split: str = "train", data_filename: str = "train.csv"):
@@ -111,7 +105,14 @@ def merge(dir_paths: List[str], write_dir: str, data_split: str = "train", data_
             # create or update dataset
             datasets[category_id] = df
 
+    # e.g. all_train.csv, all_test.csv
+    all_data = pd.concat([
+        pd.read_csv(join(dir_path, f"all_{data_split}.csv"))
+        for dir_path in dir_paths
+    ])
+
     # write datasets to dir
+    all_data.to_csv(join(write_dir, f"all_{data_split}.csv"), index=False)
     for category_id, dataset in datasets.items():
-        makedirs(join(write_dir, category_id))
-        dataset.to_csv(join(write_dir, category_id, data_filename))
+        Path(join(write_dir, data_split, category_id)).mkdir(parents=True)
+        dataset.to_csv(join(write_dir, data_split, category_id, data_filename), index=False)
