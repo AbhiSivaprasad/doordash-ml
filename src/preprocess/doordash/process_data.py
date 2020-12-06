@@ -1,3 +1,4 @@
+import math
 import sys
 import wandb
 import random
@@ -107,9 +108,28 @@ def preprocess(args: PreprocessArgs):
     df['Name'] = df['Name'].apply(lambda x: clean_string(str(x)))
 
     # split by business for better train/test distribution
-    test_mask = df["Business"].isin(["7-Eleven", "CVS", "Kroger"])
-    df_train = df[~test_mask]
-    df_test = df[test_mask] 
+    df["Train"] = ~df["Business"].isin(["7-Eleven", "CVS", "Kroger"])
+    
+    test_categories = set(df[~df["Train"]].groupby(["L1", "L2"]).size().index.to_list())
+    train_categories = set(df[df["Train"]].groupby(["L1", "L2"]).size().index.to_list())
+
+    trouble_categories = (test_categories - train_categories) | (train_categories - test_categories)
+    
+    for l1, l2 in trouble_categories:
+        category_mask = (df["L1"] == l1) & (df["L2"] == l2)
+        category_df = df[category_mask]
+
+        # randomly split category 90/10
+        splits = np.split(category_df.sample(frac=1), [get_train_size(len(category_df))])
+        train_index, test_index = splits[0].index, splits[1].index
+
+        # assign splits
+        df.loc[train_index, "Train"] = True
+        df.loc[test_index, "Train"] = False
+
+    # final train/test sets
+    df_train = df[df["Train"]]
+    df_test = df[~df["Train"]] 
 
     # resets row numbers
     df_train.reset_index(drop=True, inplace=True)
@@ -276,6 +296,17 @@ def clean_string(string: str):
     string = string.lower()
     return string
 
+
+def get_train_size(size: int):
+    if size == 1:
+        return 1
+
+    train_size = math.ceil(0.9 * size)
+
+    if train_size == size:
+        return train_size - 1
+    else:
+        return train_size
 
 if __name__ == "__main__":
     preprocess(args=PreprocessArgs().parse_args())
