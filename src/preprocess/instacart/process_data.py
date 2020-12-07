@@ -1,19 +1,13 @@
 from os import makedirs
 from os.path import join
 from src.data.taxonomy import Taxonomy
+from tempfile import TemporaryDirectory
 
 import wandb
 import numpy as np
 import pandas as pd
 
-def preprocess():
-    # Create temporary directories for writing and downloading
-    temp_data_dir = TemporaryDirectory()
-    data_dir = temp_data_dir.name
-
-    temp_write_dir = TemporaryDirectory()
-    write_dir = temp_write_dir.name
-
+def preprocess(write_dir: str, data_dir: str):
     # download raw data
     run = wandb.init(project="main", job_type="preprocessing")
     run.use_artifact("taxonomy-doordash:latest").download(data_dir)
@@ -23,6 +17,7 @@ def preprocess():
     # read dataset and remapping
     remapping = pd.read_csv(join(data_dir, "category_remapping.csv"))
     df = pd.read_csv(join(data_dir, "data.csv"))
+    df = df.rename(columns={"Store Name": "Business"})
 
     # remove nans
     mask = df[["Title", "Name", "URL", "Business", "Section"]].isnull().any(axis=1)
@@ -37,7 +32,7 @@ def preprocess():
     df = df[~df.duplicated(subset="Name")]
 
     # clean title and de-duplicate by title
-    df["Title"] = df["Title"].apply(lambda x: "from".join(title.split("from")[:-1]))
+    df["Title"] = df["Title"].apply(lambda title: "from".join(title.split("from")[:-1]))
     df = df[~df.duplicated(subset="Title")]
 
     # category remapping
@@ -60,15 +55,15 @@ def preprocess():
     
     # remove multimatch and other labels
     remapping = remapping[~(remapping[["L1", "L2"]].isin(["MULTIMATCH", "OTHER"])).any(1)]
-
+    
     # key = google category, value = native (L1, L2) categories
     category_mapping = {}
     for i, row in remapping.iterrows():
         category_mapping[row["category"]] = (row["L1"], row["L2"])
 
     # add native categorization to data
-    df["L1"] = df["category"].apply(lambda x: category_mapping.get(x, (np.nan, np.nan))[0])
-    df["L2"] = df["category"].apply(lambda x: category_mapping.get(x, (np.nan, np.nan))[1])
+    df["L1"] = df["Section"].apply(lambda x: get_native_category_from_instacart_section(category_mapping, x)[0])
+    df["L2"] = df["Section"].apply(lambda x: get_native_category_from_instacart_section(category_mapping, x)[1])
 
     # drop data without categories
     df = df[df['L1'].notna() & df['L2'].notna()]
@@ -152,5 +147,18 @@ def get_category_id(name: str):
     with_legal_chars = with_underscores.replace("&", "and")
     return with_legal_chars
 
+def get_native_category_from_instacart_section(category_mapping, section):
+    last_parts = section.split(">")[-2:]
+    key = ">".join(last_parts).lstrip().rstrip()
+    result = category_mapping.get(key, (np.nan, np.nan))
+    return result
+
 if __name__ == "__main__":
-    preprocess()
+    temp_data_dir = TemporaryDirectory()
+    data_dir = temp_data_dir.name
+
+    temp_write_dir = TemporaryDirectory()
+    write_dir = temp_write_dir.name
+
+    preprocess(write_dir, data_dir)
+
