@@ -138,8 +138,10 @@ class PredictArgs(CommonPredictArgs):
     """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
     train_datasets: List[str]
     """List of W&B artifact ideentifiers of datasets used to train model. For locating appropriate model."""
-    category_ids: List[str]
+    category_ids: List[str] = []
     """Category ids to predict for"""
+    all_categories: bool = False
+    """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
     autoload_best_model: bool = False
     """Recursively sweep models_dir for the model with highest validation score
     if False then models_dir must directly contain the model"""
@@ -148,7 +150,9 @@ class PredictArgs(CommonPredictArgs):
     W&B identifiers for desired model artifacts, aligning to category_ids.
     If empty then latest model for each category id pulled
     """
-
+    taxonomy: str = None
+    """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
+ 
 
 class BatchPredictArgs(CommonPredictArgs):
     taxonomy_dir: str

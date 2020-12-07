@@ -123,6 +123,7 @@ def run_training(args: TrainArgs):
 
         # get model
         model, tokenizer = get_huggingface_model(num_classes, args)
+        model = torch.nn.DataParallel(model)
 
         # tracks model properties in W&B
         wandb.watch(model, log="all", log_freq=25)  
@@ -150,6 +151,7 @@ def run_training(args: TrainArgs):
 
         # Evaluate on test set using model with best validation score
         model, tokenizer = load_checkpoint(model_dir)
+        model = torch.nn.DataParallel(model)
 
         # move model
         model.to(args.device)

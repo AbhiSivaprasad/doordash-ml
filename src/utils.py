@@ -19,6 +19,10 @@ def save_checkpoint(model: nn.Module,
                     args: TrainArgs, 
                     dir_path: str):
     """Save model and training args in dir_path"""
+    # for data parallel, model is stored under .module
+    if hasattr(model, 'module'):
+        model = model.module
+
     # save model & tokenizer
     model.save_pretrained(dir_path)
     tokenizer.save_pretrained(dir_path)
