@@ -1,3 +1,5 @@
+import json
+import wandb
 import numpy as np
 import pandas as pd
 
@@ -20,97 +22,94 @@ from transformers import DistilBertTokenizer
 def run_batch_prediction(args: BatchPredictArgs):
     """
     Construct hierarchy of models and run predictions.
+    For now, hardcode L1, L2
     """
-    # dirs to hold model, data
-    model_dir = join(args.save_dir, "model")
-    data_dir = join(args.save_dir, "data")
-    
-    # automatically makes args.save_dir
-    Path(model_dir).mkdir(parents=True)
-    Path(data_dir).mkdir(parents=True)
+    logger = DefaultLogger()
+    Path(args.save_dir).mkdir(parents=True, exist_ok=True)  # create logging dir
 
-    # initialize wandb run
-    api = wandb.Api({"project": args.wandb_project})
-    wandb_config = {
-        "model_identifier": args.model_artifact_identifier
-    }
-    run = wandb.init(project=args.wandb_project, job_type="taxonomy_eval", config=wandb_config)
-
-    # download and read models
-    for node, path in taxonomy.iter():
-        # make dir for category's model
-        category_model_dir = join(model_dir, node.category_id)
-        Path(category_model_dir).mkdir(parents=True)
-
-        # download model and load
-        model_identifier = "{node.model_id}:latest"
-        artifact = api.artifact(model_identifier).download(category_model_dir)
-        model, tokenizer = load_checkpoint(model_dir)
-
-        # download and read test data
-        test_data_artifact_identifier = f"dataset-{node.category_id}:latest"
-        artifact = api.artifact(test_data_artifact_identifier).download(data_dir)
-        test_data = pd.read_csv(join(data_dir, "test.csv"))
-
-        # mark artifacts as input to run
-        run.use_artifact(model_identifier)
-        run.use_artifact(test_data_artifact_identifier)
-        
-        # assign runtime node utilities
-        node.test_data = test_data
-        node.model = model
-        node.tokenizer = tokenizer
-        node.labels = labels
-
-    # merge datasets
-    dataset = pd.DataFrame()
-    for node, path in taxonomy.iter():
-        pass 
+    wandb_api = wandb.Api()
 
     # get raw test data
     test_data = pd.read_csv(args.test_path)
+    test_data["Name"] = test_data["Name"].str.lower()
 
     # read taxonomy
-    taxonomy = Taxonomy().read(args.taxonomy_dir)
+    wandb_api.artifact(args.taxonomy).download(args.save_dir)
+    taxonomy = Taxonomy().from_csv(join(args.save_dir, 'taxonomy.csv'))
 
-    # load best models
-    l1_model, l1_tokenizer = load_best_model(join(args.models_dir, "L1"))
-    l2_models_dict = {}  # key = class id, value = Model
+    # dir for L1 model
+    category_dir = join(args.save_dir, 'grocery')
+    Path(category_dir).mkdir()
+
+    # download and load model
+    model_artifact_identifier = "model-grocery:v1"
+    wandb_api.artifact(model_artifact_identifier).download(category_dir)
+    l1_model, l1_tokenizer = load_checkpoint(category_dir)
+
+    # load l1 labels
+    with open(join(category_dir, "labels.json")) as f:
+        l1_labels = json.load(f)
 
     # hack to get l1 models, write an iterator when generalizing
-    for node in taxonomy._root.children:
-        path = join(args.models_dir, node.category_name)
-        if not isdir(path):
+    l2_models_dict = {}  # key = class id, value = model
+    l2_labels_dict = {}  # key = class id, value = labels
+    for node, path in taxonomy.iter(skip_leaves=True):
+        # skip l1
+        if len(path) == 1:
             continue
 
-        model, _ = load_best_model(join(args.models_dir, node.category_name))
-        l2_models_dict[node.class_id] = model
+        category_dir = join(args.save_dir, node.category_id)
+        Path(category_dir).mkdir()
+
+        model_artifact_identifier = f"model-{node.category_id}:v1"
+        wandb_api.artifact(model_artifact_identifier).download(category_dir)
+
+        model, _ = load_checkpoint(category_dir)
+
+        with open(join(category_dir, "labels.json")) as f:
+            labels = json.load(f)
+
+        l2_models_dict[node.category_id] = model
+        l2_labels_dict[node.category_id] = labels
 
     # assumes same tokenizer used on all models
     test_data = BertDataset(test_data, l1_tokenizer, args.max_seq_length)
     test_dataloader = DataLoader(test_data, batch_size=args.batch_size)
 
     # compute predictions and targets
-    l1_targets = test_data.data["L1_target"].values
-    l2_targets = test_data.data["L2_target"].values
-    targets = np.concatenate((l1_targets[:, np.newaxis], l2_targets[:, np.newaxis]), axis=1)
+    preds, l2_confidence_scores = batch_predict(
+        l1_model, l1_labels, l2_models_dict, test_dataloader, args.device, strategy=args.strategy)
 
-    preds, l1_confidence_scores, l2_confidence_scores = batch_predict(
-        l1_model, l2_models_dict, test_dataloader, args.device, strategy=args.strategy)
+    def get_labels(l1_class_id, l2_class_id):
+        l1_category = l1_labels[l1_class_id]
+        l2_category = l2_labels_dict[l1_category][l2_class_id]
+        return l1_category, l2_category
+
+    preds = [[get_labels(l1_pred, l2_pred) for l1_pred, l2_pred in topk] for topk in preds]
 
     # process predictions
     df_preds = pd.DataFrame()
-    df_preds["L1_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id])
-                            for l1_class_id in preds[:, 0]]
-    df_preds["L2_preds"] = [taxonomy.class_ids_to_category_name([l1_class_id, l2_class_id])
-                            for l1_class_id, l2_class_id in preds]
+
+    for i, topk in enumerate(preds):
+        row = {}
+        for j, (l1_pred, l2_pred) in enumerate(topk):
+            row[f"L1 #{j + 1}"] = l1_pred
+            row[f"L2 #{j + 1}"] = l2_pred
+            row[f"Confidence #{j + 1}"] = l2_confidence_scores[i][j]
+
+        df_preds = df_preds.append(row, ignore_index=True)
+
+    # reorder columns
+    columns_generator = zip([f"L1 #{i + 1}" for i in range(len(preds[0]))], 
+                            [f"L2 #{i + 1}" for i in range(len(preds[0]))],
+                            [f"Confidence #{i + 1}" for i in range(len(preds[0]))])
+    columns = [column for column_set in columns_generator for column in column_set]
+    df_preds = df_preds[columns]
 
     # aggregate and write results
     results = pd.concat([pd.DataFrame({
         'Name': test_data.data["Name"],
-        'Overall Confidence': l2_confidence_scores, 
-        'L1 Confidence': l1_confidence_scores,
-        'L1_target': test_data.data["L1"],
-        'L2_target': test_data.data["L2"],
     }), df_preds], axis=1)
+
     results.to_csv(join(args.save_dir, "results.csv"), index=False)
+

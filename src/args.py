@@ -155,7 +155,10 @@ class PredictArgs(CommonPredictArgs):
  
 
 class BatchPredictArgs(CommonPredictArgs):
-    taxonomy_dir: str
-    """Path to directory with taxonomy"""
+    test_path: str
+    """Path to csv to test on"""
+    taxonomy: str
+    """W&B identifier of taxonomy"""
     strategy: str = "greedy"
     """Strategy to merge L1, L2 predictions. Options: greedy, complete"""
+
