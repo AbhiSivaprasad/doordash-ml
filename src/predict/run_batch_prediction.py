@@ -8,12 +8,12 @@ from os.path import join, isdir
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from ..utils import load_best_model, DefaultLogger, load_checkpoint
+from ..utils import DefaultLogger, load_checkpoint
 from .batch_predict import batch_predict
 from .predict import predict
 from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
 from ..args import BatchPredictArgs
-from ..data.bert import BertDataset
+from ..data.dataset.bert import BertDataset
 from ..data.taxonomy import Taxonomy
 
 from transformers import DistilBertTokenizer
@@ -58,18 +58,15 @@ def run_batch_prediction(args: BatchPredictArgs):
         if len(path) == 1:
             continue
 
-        category_dir = join(args.save_dir, node.category_id)
-        Path(category_dir).mkdir()
+        # load checkpoint
+        category_dir = join(args.models_dir, node.category_id)
+        model = load_checkpoint(category_dir)
 
-        model_artifact_identifier = f"model-{node.category_id}:v1"
-        wandb_api.artifact(model_artifact_identifier).download(category_dir)
-
-        model, _ = load_checkpoint(category_dir)
-
+        # load class labels, list with element i = category id of class i
         with open(join(category_dir, "labels.json")) as f:
             labels = json.load(f)
 
-        l2_models_dict[node.category_id] = model
+        l2_models_dict[node.category_id] = model.model
         l2_labels_dict[node.category_id] = labels
 
     # assumes same tokenizer used on all models

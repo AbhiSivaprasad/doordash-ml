@@ -42,52 +42,6 @@ def upload_checkpoint(run, category_id: str, dir_path: str):
     run.log_artifact(artifact)
 
 
-def load_best_model(models_dir: str, wandb_api, args: TrainArgs):
-    """ 
-    From W&B load the best model for the given model type
-    """
-    runs = api.runs(path=args.project, filters={
-        "config.model_name": args.model_name, 
-        "config.category_name": args.category_name,
-        "order": "+summary_metrics.loss"
-    })
-
-    # get first run
-
-
-    # model should be the only logged artifact
-    run.logged_artifacts
-
-    return load_checkpoint(models_dir) 
-
-
-def is_best_model(dir_path):
-    """
-    Load best model of same type and best overall model.
-    If trained model is better than either then 
-    """
-    run.use_artifact(artifact_name).download(models_dir)
-
-    current_best_model = load_model(category_name)
-    # if model better than current best:
-
-
-def save_validation_metrics(dir_path: str, accuracy: float, loss: float):
-    """Save all validation metrics in a file in dir_path"""
-    with open(join(dir_path, VAL_RESULTS_FILE_NAME), "w") as f:
-        f.write(f"Accuracy, {accuracy}\n")
-        f.write(f"Loss, {loss}\n")
-
-
-def read_validation_metrics(dir_path: str) -> float:
-    """Read all validation metrics from validation file in dir_path"""
-    with open(join(dir_path, VAL_RESULTS_FILE_NAME), "r") as f:
-        _, accuracy = f.readline().split(", ")
-        _, loss = f.readline().split(", ")
-
-    return float(accuracy), float(loss)
-
-  
 def set_seed(seed: int):
     """set seed for reproducibility"""
     random.seed(seed)
