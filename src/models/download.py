@@ -98,11 +98,13 @@ def build_query(arg_parts: List[str]):
 
     return args
 
+
 def add_arg(args, arg_name, arg_values):
     if len(arg_values) == 1:
         arg_values = arg_values[0]
 
     args[arg_name] = arg_values
+
 
 def is_arg_name(name: str):
     return len(name) > 2 and name[:2] == "--"
