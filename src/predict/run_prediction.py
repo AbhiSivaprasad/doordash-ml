@@ -56,7 +56,7 @@ def run_prediction(args: PredictArgs):
 
         print(f"Using run {runs[0].name} for category id {category_id}")
 
-   # important to sort lists so its easily queryable
+    # important to sort lists so its easily queryable
     wandb_config = {
         "model_identifiers": sorted(full_model_artifact_identifiers),
         "eval_datasets": sorted(full_eval_dataset_identifiers),
@@ -123,7 +123,6 @@ def run_prediction(args: PredictArgs):
         test_loss = F.nll_loss(torch.log(probs[mask]), 
                                torch.from_numpy(test_dataset.targets[mask].values).to(args.device)).item()
         
-       
         test_accs.append(test_acc)
         test_losses.append(test_loss)
 
