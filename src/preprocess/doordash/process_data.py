@@ -143,29 +143,10 @@ def preprocess(args: PreprocessArgs):
                                dirpath=args.image_dir,
                                filenames=list(df.loc[valid_urls_mask]["Image Name"]))
 
-    # split by business for better train/test distribution
-    df["Train"] = ~df["Business"].isin(["7-Eleven", "CVS", "Kroger"])
-    
-    test_categories = set(df[~df["Train"]].groupby(["L1", "L2"]).size().index.to_list())
-    train_categories = set(df[df["Train"]].groupby(["L1", "L2"]).size().index.to_list())
-
-    trouble_categories = (test_categories - train_categories) | (train_categories - test_categories)
-    
-    for l1, l2 in trouble_categories:
-        category_mask = (df["L1"] == l1) & (df["L2"] == l2)
-        category_df = df[category_mask]
-
-        # randomly split category 90/10
-        splits = np.split(category_df.sample(frac=1), [get_train_size(len(category_df))])
-        train_index, test_index = splits[0].index, splits[1].index
-
-        # assign splits
-        df.loc[train_index, "Train"] = True
-        df.loc[test_index, "Train"] = False
-
-    # final train/test sets
-    df_train = df[df["Train"]]
-    df_test = df[~df["Train"]] 
+    # split in train, test
+    df_train, df_test = np.split(df.sample(frac=1), [
+        int(args.train_size * len(df)), 
+    ])
 
     # resets row numbers
     df_train.reset_index(drop=True, inplace=True)
