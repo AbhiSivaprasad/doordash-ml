@@ -37,7 +37,7 @@ class DownloadArgs(Tap):
 
 
 def download(args: DownloadArgs):
-    """Download dataset from specified sources and merge"""
+    """Download model per category given properties"""
 
     # extra_args holds all passed in args not specified in Args
     query_args = args.extra_args

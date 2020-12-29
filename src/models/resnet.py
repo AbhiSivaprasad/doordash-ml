@@ -37,7 +37,11 @@ class ResnetModel:
             'state': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict()
         }
+
         torch.save(state, join(save_dir, 'model.pt'))
+
+        with open(join(model_dir, "labels.json"), 'w') as f:
+            json.dump(labels, f)
 
     def load(self, checkpoint_file: str, device: torch.device):
         if cpu:
@@ -45,10 +49,8 @@ class ResnetModel:
         else:
             checkpoint = torch.load(checkpoint_file)
     
-        # optionally resume from a checkpoint
-        if "labels" in checkpoint:
-            labels = checkpoint["labels"]
-    
         self.model.load_state_dict(checkpoint['state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.labels = sorted(checkpoint["labels"])
+
+        with open(join(category_dir, "labels.json")) as f:
+            labels = json.load(f)
