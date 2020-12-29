@@ -18,12 +18,13 @@ def predict(model: torch.nn.Module,
     preds = []
     probs_batches = []
     with torch.no_grad():
-        for data in data_loader:
-            ids = data['ids'].to(device, dtype=torch.long)
-            mask = data['mask'].to(device, dtype=torch.long)
+        for input_data, _ in data_loader:
+            # send all input items to gpu
+            for k, t in input_data.items():
+                input_data[k] = t.to(device) 
 
             # generate outputs
-            logits = model(input_ids=ids, attention_mask=mask)[0]
+            logits = model(**input_data)[0]
 
             # compute probabilities
             if return_probs:

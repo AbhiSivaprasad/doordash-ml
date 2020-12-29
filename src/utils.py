@@ -14,26 +14,6 @@ from .args import TrainArgs
 from .constants import MODEL_FILE_NAME, VAL_RESULTS_FILE_NAME, TRAINING_ARGS_FILE_NAME
 
 
-def save_checkpoint(model: nn.Module, 
-                    tokenizer: PreTrainedTokenizer, 
-                    args: TrainArgs, 
-                    dir_path: str):
-    """Save model and training args in dir_path"""
-    # for data parallel, model is stored under .module
-    if hasattr(model, 'module'):
-        model = model.module
-
-    # save model & tokenizer
-    model.save_pretrained(dir_path)
-    tokenizer.save_pretrained(dir_path)
-
-
-def load_checkpoint(dir_path: str):
-    """Load model saved in directory dir_path"""
-    return (AutoModelForSequenceClassification.from_pretrained(dir_path), 
-            AutoTokenizer.from_pretrained(dir_path, do_lower_case=False))
-
-
 def upload_checkpoint(run, category_id: str, dir_path: str):
     """Save checkpoint to W&B"""
     # save model & tokenizer as artifact

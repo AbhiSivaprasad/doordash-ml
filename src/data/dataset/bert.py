@@ -20,21 +20,22 @@ class BertDataset(Dataset):
             add_special_tokens=True,
             max_length=self.max_len,
             padding='max_length',
-            # truncation=True # TODO: measure performance of truncated samples
+            truncation=True # TODO: measure performance of truncated samples
         )
 
         ids = inputs['input_ids']
         mask = inputs['attention_mask']
         
         item = {
-            'ids': torch.tensor(ids, dtype=torch.long),
-            'mask': torch.tensor(mask, dtype=torch.long),
+            'input_ids': torch.tensor(ids, dtype=torch.long),
+            'attention_mask': torch.tensor(mask, dtype=torch.long),
         }
 
-        if "target" in self.data.columns:
-            item["targets"] = torch.tensor(self.data.target[index], dtype=torch.long) 
+        targets = (torch.tensor(self.data.target[index], dtype=torch.long) 
+                   if "target" in self.data.columns 
+                   else None)
         
-        return item
+        return item, targets
 
     def __len__(self):
         return self.len

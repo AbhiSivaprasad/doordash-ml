@@ -13,13 +13,13 @@ from torch.utils.data import DataLoader
 from transformers import DistilBertTokenizer
 from time import time
 
-from ..utils import set_seed, load_checkpoint, DefaultLogger, save_validation_metrics, save_checkpoint, upload_checkpoint
+from ..utils import set_seed, DefaultLogger, upload_checkpoint
 from ..data.data import split_data, encode_target_variable, encode_target_variable_with_labels
 from ..data.taxonomy import Taxonomy
-from ..data.bert import BertDataset
+from ..data.dataset.bert import BertDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
-from ..models.models import get_huggingface_model, get_wandb_model
+from ..models.huggingface import HuggingfaceModel
 from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
@@ -122,16 +122,16 @@ def run_training(args: TrainArgs):
         num_classes = len(labels)
 
         # get model
-        model, tokenizer = get_huggingface_model(num_classes, args)
-        model = torch.nn.DataParallel(model)
+        model = HuggingfaceModel.get_model(args.model_name, labels, num_classes, args.lr)
+        # model.model = torch.nn.DataParallel(model.model)
 
         # tracks model properties in W&B
-        wandb.watch(model, log="all", log_freq=25)  
-        model.to(args.device)
+        wandb.watch(model.model, log="all", log_freq=25)  
+        model.model.to(args.device)
 
         # pass in targets to dataset
         train_data, valid_data, test_data = [
-            BertDataset(split, tokenizer, args.max_seq_length) for split in data_splits
+            BertDataset(split, model.tokenizer, args.max_seq_length) for split in data_splits
         ]
 
         # pytorch data loaders
@@ -141,7 +141,6 @@ def run_training(args: TrainArgs):
 
         # run training
         train(model=model, 
-              tokenizer=tokenizer, 
               train_dataloader=train_dataloader, 
               valid_dataloader=valid_dataloader, 
               valid_targets=torch.from_numpy(valid_data.targets.values).to(args.device), 
@@ -150,14 +149,14 @@ def run_training(args: TrainArgs):
               device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model, tokenizer = load_checkpoint(model_dir)
-        model = torch.nn.DataParallel(model)
+        model = HuggingfaceModel.load(model_dir)
+        # model.model = torch.nn.DataParallel(model.model)
 
         # move model
-        model.to(args.device)
+        model.model.to(args.device)
         
         # predict & evaluate
-        preds, probs = predict(model, test_dataloader, args.device, return_probs=True)
+        preds, probs = predict(model.model, test_dataloader, args.device, return_probs=True)
         test_acc = evaluate_predictions(preds, test_data.targets.values)
         test_loss = F.nll_loss(torch.log(probs), 
                                torch.from_numpy(test_data.targets.values).to(args.device))

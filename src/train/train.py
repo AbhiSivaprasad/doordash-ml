@@ -1,3 +1,4 @@
+import time
 import os
 import wandb
 import torch
@@ -13,15 +14,14 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 
-from ..utils import DefaultLogger, set_seed, save_checkpoint
+from ..utils import DefaultLogger, set_seed
 from ..eval.evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
 from ..predict.predict import predict
 
 
-def train(model: nn.Module,
-          tokenizer: PreTrainedTokenizer,
+def train(model,
           train_dataloader: DataLoader, 
           valid_dataloader: DataLoader, 
           valid_targets: torch.tensor,
@@ -37,22 +37,22 @@ def train(model: nn.Module,
 
     # default logger prints
     logger = DefaultLogger() if logger is None else logger
-
-    # simple loss function, optimizer
-    loss_fn = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr)
-
+    
     # train model
     best_loss = None
     patience = args.patience
     for epoch in trange(args.epochs):
-        logger.debug("Epoch:", epoch)
-
         # train for an epoch
-        train_epoch(model, train_dataloader, optimizer, loss_fn, args.lr, device, logger)
+        train_epoch(model.model, 
+                    train_dataloader, 
+                    model.optimizer, 
+                    model.loss_fn, 
+                    args.lr, 
+                    device, 
+                    logger)
 
         # test on validation set after each epoch
-        valid_preds, valid_probs = predict(model, valid_dataloader, device, return_probs=True)
+        valid_preds, valid_probs = predict(model.model, valid_dataloader, device, return_probs=True)
         val_acc = evaluate_predictions(valid_preds, valid_targets.cpu().numpy(), logger)
         val_loss = F.nll_loss(torch.log(valid_probs), valid_targets)
 
@@ -66,7 +66,7 @@ def train(model: nn.Module,
             best_loss = val_loss
             
             # save model, args
-            save_checkpoint(model, tokenizer, args, save_dir)
+            model.save(save_dir)
 
             # reset patience
             patience = args.patience
@@ -93,14 +93,21 @@ def train_epoch(model: torch.nn.Module,
     """
     # use custom logger for training
     model.train()
-    for batch_iter, data in tqdm(enumerate(data_loader), total=len(data_loader)):
-        ids = data['ids'].to(device, dtype=torch.long)
-        mask = data['mask'].to(device, dtype=torch.long)
-        targets = data['targets'].to(device, dtype=torch.long)
+
+    for i, data in tqdm(enumerate(data_loader), total=len(data_loader)):
+        input_dict, targets = data
+
+        # send all input items to gpu
+        for k, t in input_dict.items():
+            input_dict[k] = t.to(device) 
+
+        # targets to gpu
+        targets = targets.to(device)
         
         # predict and compute loss
-        logits = model(input_ids=ids, attention_mask=mask)[0]
-        loss = F.cross_entropy(logits, targets)
+        logits = model(**input_dict)[0]
+
+        loss = loss_fn(logits, targets)
         _, preds = torch.max(logits.data, dim=1)
           
         # log to W&B, autotracks iter
@@ -108,8 +115,10 @@ def train_epoch(model: torch.nn.Module,
             "train loss": loss.item(),
             "train accuracy": (preds==targets).sum().item() / targets.size(0),
         })
- 
+
         # backprop
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+
