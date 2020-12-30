@@ -10,6 +10,8 @@ from os.path import join
 
 
 class HuggingfaceModel: 
+    MODEL_TYPE = 'huggingface'
+
     def __init__(self,
                  model: nn.Module,
                  tokenizer,
@@ -24,13 +26,13 @@ class HuggingfaceModel:
 
     @classmethod
     def get_model(cls, 
-                  pretrained_model_name_or_path: str,
+                  model_name: str,
                   labels: List[str],
                   num_classes: int, 
                   lr: float) -> None:
         # load huggingface model & tokenizer
         model, tokenizer = cls._get_model(
-            num_classes, pretrained_model_name_or_path)    
+            num_classes, model_name)    
 
         # Adam optimizer
         optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
@@ -53,6 +55,11 @@ class HuggingfaceModel:
         # save labels
         with open(join(dir_path, "labels.json"), 'w') as f:
             json.dump(self.labels, f)
+
+        with open(join(dir_path, "master-config.json"), 'w') as f:
+            json.dump({
+                "model_type": self.MODEL_TYPE
+            }, f)
 
     @classmethod
     def load(cls, dir_path: str):
