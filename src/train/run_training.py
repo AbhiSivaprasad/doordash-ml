@@ -17,6 +17,7 @@ from ..utils import set_seed, DefaultLogger, upload_checkpoint
 from ..data.data import split_data, encode_target_variable, encode_target_variable_with_labels
 from ..data.taxonomy import Taxonomy
 from ..data.dataset.bert import BertDataset
+from ..data.dataset.image_dataset import ImageDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
 from ..models.huggingface import HuggingfaceModel
@@ -24,6 +25,7 @@ from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
 from ..api.wandb import get_latest_artifact_identifier
+from ..models.utils import get_hyperparams, get_model, load_model
 
 
 def run_training(args: TrainArgs):
@@ -88,6 +90,14 @@ def run_training(args: TrainArgs):
         with open(join(model_dir, "labels.json"), 'w') as f:
             json.dump(labels, f)
 
+        # grab model and model specific hyperparams
+        num_classes = len(labels)
+        model = get_model(args, labels, num_classes) 
+        hyperparam_names = get_hyperparams(args.model_type)
+        hyperparams = {hyperparam_name: args.__dict__[hyperparam_name] 
+                       for hyperparam_name in hyperparam_names}
+        # model.model = torch.nn.DataParallel(model.model)
+
         # initialize W&B run
         run_id = str(int(time()))
         wandb_config = {
@@ -97,16 +107,17 @@ def run_training(args: TrainArgs):
             "train_dataset_size": len(data_splits[0]),
             "num_epochs": args.epochs,
             "batch_size": args.train_batch_size,
+            "model_type": args.model_type,
             "model_name": args.model_name,
             "patience": args.patience,
-            "max_seq_length": args.max_seq_length,
-            "cls_dropout": args.cls_dropout,
-            "cls_hidden_dim": args.cls_hidden_dim,
             "labels": labels,
             "train_datasets": sorted(train_data_sources),  # sort so easily queryable
             "test_datasets": sorted(test_data_sources),  # sort so easily queryable
             "separate_test_set": args.test_dir is not None  # False if test set is created by splitting train set
         }
+
+        # add model specific hyperparameters to config
+        wandb_config.update(hyperparams)
 
         run = wandb.init(project=args.wandb_project, 
                          name=run_id,
@@ -118,21 +129,19 @@ def run_training(args: TrainArgs):
         for source in train_data_sources + test_data_sources:
             run.use_artifact(source)
 
-        # build model based on # of target classes
-        num_classes = len(labels)
-
-        # get model
-        model = HuggingfaceModel.get_model(args.model_name, labels, num_classes, args.lr)
-        # model.model = torch.nn.DataParallel(model.model)
-
         # tracks model properties in W&B
         wandb.watch(model.model, log="all", log_freq=25)  
         model.model.to(args.device)
 
         # pass in targets to dataset
-        train_data, valid_data, test_data = [
-            BertDataset(split, model.tokenizer, args.max_seq_length) for split in data_splits
-        ]
+        if args.model_type == 'huggingface':
+            train_data, valid_data, test_data = [
+                BertDataset(split, model.tokenizer, args.max_seq_length) for split in data_splits
+            ]
+        elif args.model_type == 'resnet':
+            train_data, valid_data, test_data = [
+                ImageDataset(split, args.image_dir, args.image_size) for split in data_splits
+            ]
 
         # pytorch data loaders
         train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size, shuffle=True)
@@ -149,7 +158,7 @@ def run_training(args: TrainArgs):
               device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model = HuggingfaceModel.load(model_dir)
+        model = load_model(model_dir)
         # model.model = torch.nn.DataParallel(model.model)
 
         # move model

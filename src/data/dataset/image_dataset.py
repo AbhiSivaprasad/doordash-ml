@@ -1,10 +1,12 @@
 import os
+import hashlib
 import pathlib
 import pandas as pd
 import torch
 import torchvision.transforms as transforms
 
 from PIL import Image, ImageOps, ImageFile
+from os.path import join
    
 
 class ImageDataset(torch.utils.data.Dataset):
@@ -12,11 +14,12 @@ class ImageDataset(torch.utils.data.Dataset):
                  data: pd.DataFrame,
                  image_dir: str, 
                  image_size: int, 
-                 extension: str = "jpg", 
                  val: bool = False):
-        self._data = data
         self._image_dir = image_dir
-        self._extension = extension
+
+        # remove rows without images
+        self._data = data[data["Image Name"].notna()]
+        self._data.reset_index(drop=True, inplace=True)
 
         # image transform
         self.transform = (Transformer(image_size).val_transform 
@@ -31,10 +34,13 @@ class ImageDataset(torch.utils.data.Dataset):
 
         # locate image
         image_name = self._data.loc[index, "Image Name"]
-        image_path = join(self._image_dir, f"{image_name}.{self._extension}")
+        hash_dir = self.get_hash_dir(image_name)
+
+        # path to image
+        image_path = join(self._image_dir, hash_dir, image_name)
 
         # locate target class
-        class_id = self._data.loc[index, "Target"]
+        class_id = self._data.loc[index, "target"]
 
         try:
             # load image
@@ -53,6 +59,19 @@ class ImageDataset(torch.utils.data.Dataset):
             print("failed to load image", self._data, str(index))
             print(e)
             return None
+
+    def get_hash_dir(self, image_name: str):
+        stripped_image_name = ".".join(image_name.split(".")[:-1])
+
+        # if the stripped name is "" then extension not found
+        assert stripped_image_name != ""
+
+        # first two chars of hash
+        return hashlib.sha1(stripped_image_name.encode('utf-8')).hexdigest()[:2]
+
+    @property
+    def targets(self):
+        return self._data["target"]
 
 
 class Transformer:

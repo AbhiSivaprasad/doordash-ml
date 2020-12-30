@@ -84,17 +84,34 @@ class TrainArgs(CommonArgs):
     # Model args
     model_name: str
     """Name of model to train, format depends on model type"""
-    # model_source: Literal["huggingface", "wandb"] = "huggingface"
+    model_type: Literal["huggingface", "resnet"] = "huggingface"
+    """Type of model to train"""
     # """Source to pull model from"""
     cls_hidden_dim: int = 768
     """Size of hidden layer in classification head"""
     cls_dropout: float = 0.3
     """Dropout after hidden layer activation in clhahlassification head"""
 
+    # Resnet Model args
+    pretrained: bool = True
+    """Whether to use pretrained weights"""
+    momentum: float = 0.9
+    """Momentum for training optimizer"""
+    weight_decay: float = 1e-4
+    """Weight decay for training optimizer"""
+    image_dir: str = "local/images"
+    """Path to directory with images"""
+    image_size: int = 256
+    """Size of image inputs"""
+    lr_decay: float = 0.1
+    """Every lr_step_size epochs, decay learning rate"""
+    lr_step_size: float = 30
+    """Every lr_step_size epochs, decay learning rate"""
+
     # Training args
     epochs: int = 10
     """Number of epochs to train model for"""
-    lr: float = 1e-5
+    lr: float = 1e-5  # default for bert finetuning, for resnet should be 0.1
     """Learning rate for training"""
     patience: int = 3
     """Number of epochs to wait for better val accuracy before early stopping"""

@@ -42,6 +42,7 @@ def train(model,
     best_loss = None
     patience = args.patience
     for epoch in trange(args.epochs):
+        print(patience)
         # train for an epoch
         train_epoch(model.model, 
                     train_dataloader, 
@@ -56,12 +57,17 @@ def train(model,
         val_acc = evaluate_predictions(valid_preds, valid_targets.cpu().numpy(), logger)
         val_loss = F.nll_loss(torch.log(valid_probs), valid_targets)
 
+        # if model has a scheduler then adjust learning rates
+        if hasattr(model, 'scheduler'):
+            model.scheduler.step()
+
         wandb.log({
             "validation loss": val_loss,
             "validation accuracy": val_acc
-        }, commit=False)
+        })
 
         # if model is better then save
+        print(f"val loss: {val_loss}, best loss: {best_loss}")
         if best_loss is None or val_loss < best_loss:
             best_loss = val_loss
             
@@ -95,17 +101,20 @@ def train_epoch(model: torch.nn.Module,
     model.train()
 
     for i, data in tqdm(enumerate(data_loader), total=len(data_loader)):
-        input_dict, targets = data
+        input_t, targets = data
 
         # send all input items to gpu
-        for k, t in input_dict.items():
-            input_dict[k] = t.to(device) 
+        if type(input_t) is list:
+            for i in range(input_t):
+                input_t[i] = input_t[i].to(device) 
+        else:
+            input_t = input_t.to(device)
 
         # targets to gpu
         targets = targets.to(device)
         
         # predict and compute loss
-        logits = model(**input_dict)[0]
+        logits = model(input_t)
 
         loss = loss_fn(logits, targets)
         _, preds = torch.max(logits.data, dim=1)
