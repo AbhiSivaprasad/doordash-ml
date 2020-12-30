@@ -3,27 +3,29 @@ import wandb
 import boto3
 import requests 
 import urllib
+import hashlib
 
-from os import listdir
-from os.path import join
+import numpy as np
+import multiprocessing.pool as mpp
+
+from os import listdir, stat, walk
+from os.path import join, relpath
 from functools import partial
 from typing import List
 from tempfile import TemporaryDirectory
-import multiprocessing.pool as mpp
 from tqdm import tqdm
-
-from .utils import hash_string
+from pathlib import Path
 
 
 def upload_directory_to_s3(s3_client, 
                            bucket_name, 
-                           object_prefix: str, 
                            dirpath: str, 
                            filenames: List[str], 
                            num_workers: int = 16):
-    """Upload a directory w/o subdirectories to s3"""
-    filepaths = [join(dirpath, filename) for filename in filenames]
-    object_names = [join(object_prefix, filename) for filename in filenames]
+    """Upload a directory recursively to s3"""
+    # recursively collect all filepaths
+    filepaths = [join(root, f) for root, dirs, files in walk(dirpath) for f in files]
+    object_names = [relpath(filepath, dirpath) for filepath in filepaths]
 
     # define function instead of partial since positional args needed for map
     def thread_f(filepath, key):
@@ -40,8 +42,25 @@ def upload_directory_to_s3(s3_client,
 
 def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str], num_workers: int = 16):
     """Download images to a local dir""" 
+    filepaths = []
+    hash_dirs = set()
+
     # file name is a hash of the url
-    filepaths = [join(dirpath, filename) for url, filename in zip(urls, filenames)]
+    for url, filename in zip(urls, filenames):
+        # strip ".jpeg"
+        stripped_filename = remove_extension(filename) 
+        assert(stripped_filename is not None)
+
+        # first 3 characters of hash
+        hash_dir = hashlib.sha1(stripped_filename.encode('utf-8')).hexdigest()[:2]
+        hash_dirs.add(hash_dir)
+
+        # file path
+        filepaths.append(join(dirpath, hash_dir, filename))
+
+    # create all the hash dirs
+    for hash_dir in hash_dirs:
+        Path(join(dirpath, hash_dir)).mkdir(exist_ok=True)
 
     # download in parallel with a thread pool
     mpp.Pool.istarmap = istarmap
@@ -55,8 +74,11 @@ def download_image(url: str, filepath: str):
     cv2.setNumThreads(0)
 
     # fetch image
-    req = urllib.request.Request(url)
-    resp = urllib.request.urlopen(req, timeout=5)
+    try: 
+        req = urllib.request.Request(url)
+        resp = urllib.request.urlopen(req, timeout=15)
+    except:
+        print(url)
 
     # process image
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
@@ -69,26 +91,13 @@ def download_image(url: str, filepath: str):
     cv2.imwrite(filepath, img)
 
     # move image (make sure completely downloaded)
-    if os.stat(filepath).st_size > 0:
+    if stat(filepath).st_size == 0:
+        print(url)
         raise ValueError('File is empty', filepath)
 
 
-def download_image_old(url: str, filepath: str):
-    """Download image from url to filepath"""
-    response = requests.get(url)
-
-    if not response.ok:
-        print(response)
-        raise ValueError("Failed Request:", url)
-
-    img_data = response.content 
-    with open(filepath, 'wb') as f:
-        f.write(img_data)
-
-
 def istarmap(self, func, iterable, chunksize=1):
-    """starmap-version of imap
-    """
+    """starmap-version of imap"""
     if self._state != mpp.RUN:
         raise ValueError("Pool not running")
 
@@ -107,6 +116,13 @@ def istarmap(self, func, iterable, chunksize=1):
             result._set_length
         ))
     return (item for chunk in result for item in chunk)
+
+
+def remove_extension(filename: str):
+    stripped_filename = ".".join(filename.split(".")[:-1])
+
+    # if the stripped name is "" then extension not found
+    return stripped_filename if stripped_filename != "" else None
 
 
 if __name__ == '__main__':

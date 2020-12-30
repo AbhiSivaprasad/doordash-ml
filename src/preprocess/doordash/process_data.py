@@ -83,6 +83,8 @@ def preprocess(args: PreprocessArgs):
     df = df[['Business', 'item_name', 'l1', 'l2', 'photo']]
     df.columns = ['Business', 'Name', 'L1', 'L2', 'Image URL']
 
+    df = df[~df["L1"].isna()]
+
     # add data source identifier (wandb id of processed dataset)
     latest_artifact_identifier = get_latest_artifact_identifier(
         api, artifact_identifier=f"{args.processed_dataset_artifact_name}:latest")
@@ -284,8 +286,8 @@ def split_dataset(df, taxonomy):
 
         # If depth = 0 (root) then we want all L1s which is the entire dataset
         dataset = df[df[f"L{depth} ID"] == node.category_id] if depth > 0 else df
-        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name"]]
-        dataset.columns = ["Business", "Category Name", "Category ID", "Name"]
+        dataset = dataset[["Business", f"L{depth + 1}", f"L{depth + 1} ID", "Name", "Image Name"]]
+        dataset.columns = ["Business", "Category Name", "Category ID", "Name", "Image Name"]
         datasets[node.category_id] = dataset
     
     return datasets
