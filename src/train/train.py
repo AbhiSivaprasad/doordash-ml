@@ -105,7 +105,7 @@ def train_epoch(model: torch.nn.Module,
 
         # send all input items to gpu
         if type(input_t) is list:
-            for i in range(input_t):
+            for i in range(len(input_t)):
                 input_t[i] = input_t[i].to(device) 
         else:
             input_t = input_t.to(device)

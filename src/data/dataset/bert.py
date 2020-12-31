@@ -26,10 +26,7 @@ class BertDataset(Dataset):
         ids = inputs['input_ids']
         mask = inputs['attention_mask']
         
-        item = {
-            'input_ids': torch.tensor(ids, dtype=torch.long),
-            'attention_mask': torch.tensor(mask, dtype=torch.long),
-        }
+        item = [torch.tensor(ids, dtype=torch.long), torch.tensor(mask, dtype=torch.long)]
 
         targets = (torch.tensor(self.data.target[index], dtype=torch.long) 
                    if "target" in self.data.columns 

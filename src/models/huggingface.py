@@ -24,6 +24,10 @@ class HuggingfaceModel:
         self.loss_fn = loss_fn
         self.labels = labels
 
+        # standardize forward pass
+        self.model.__callsave__ = self.model.__call__
+        self.model.__class__.__call__ = self.standardized_forward
+
     @classmethod
     def get_model(cls, 
                   model_name: str,
@@ -95,3 +99,8 @@ class HuggingfaceModel:
             model.resize_token_embeddings(len(tokenizer))
 
         return model, tokenizer
+
+    def standardized_forward(self, input_list):
+        input_ids, attention_mask = input_list
+        return self.model.__callsave__(input_ids=input_ids, attention_mask=attention_mask)[0]
+

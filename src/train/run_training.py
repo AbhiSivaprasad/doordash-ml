@@ -102,7 +102,7 @@ def run_training(args: TrainArgs):
         run_id = str(int(time()))
         wandb_config = {
             "id": run_id,
-            "batch_timestamp": timestamp,
+            "batch_id": timestamp,
             "category_id": category_id,
             "train_dataset_size": len(data_splits[0]),
             "num_epochs": args.epochs,
@@ -130,7 +130,7 @@ def run_training(args: TrainArgs):
             run.use_artifact(source)
 
         # tracks model properties in W&B
-        wandb.watch(model.model, log="all", log_freq=25)  
+        wandb.watch(model.model, log="all") 
         model.model.to(args.device)
 
         # pass in targets to dataset
