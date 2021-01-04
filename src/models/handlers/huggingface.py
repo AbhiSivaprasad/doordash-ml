@@ -9,7 +9,7 @@ from pathlib import Path
 from os.path import join
 
 
-class HuggingfaceModel: 
+class HuggingfaceHandler: 
     MODEL_TYPE = 'huggingface'
 
     def __init__(self,
@@ -24,19 +24,24 @@ class HuggingfaceModel:
         self.loss_fn = loss_fn
         self.labels = labels
 
-        # standardize forward pass
-        self.model.__callsave__ = self.model.__call__
-        self.model.__class__.__call__ = self.standardized_forward
+        # standardize forward pass by saving __call__ as __callsave__
+        # __call__ is reassigned to process inputs then route to __callsave__
+        #if '__callsave__' not in dir(self.model):
+        #    self.model.__class__.__callsave__ = self.model.__call__
+        #    self.model.__class__.__call__ = self.standardized_forward
 
     @classmethod
-    def get_model(cls, 
-                  model_name: str,
-                  labels: List[str],
-                  num_classes: int, 
-                  lr: float) -> None:
+    def download_model(cls, 
+                       model_name: str,
+                       labels: List[str],
+                       num_classes: int, 
+                       lr: float) -> None:
+        # If no model path, then model name is a huggingface name to be downloaded
+        model_identifier = model_path if model_path is not None else model_name
+
         # load huggingface model & tokenizer
         model, tokenizer = cls._get_model(
-            num_classes, model_name)    
+            num_classes, model_identifier)    
 
         # Adam optimizer
         optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
@@ -44,7 +49,7 @@ class HuggingfaceModel:
         # simple loss function, optimizer
         loss_fn = nn.CrossEntropyLoss()
 
-        return HuggingfaceModel(model, tokenizer, optimizer, loss_fn, labels)
+        return HuggingfaceHandler(model, tokenizer, optimizer, loss_fn, labels)
 
     def save(self, dir_path: str):
         """Save model and training args in dir_path"""
@@ -74,7 +79,7 @@ class HuggingfaceModel:
         with open(join(dir_path, "labels.json")) as f:
             labels = json.load(f)
 
-        return HuggingfaceModel(model, tokenizer, labels=labels)
+        return HuggingfaceHandler(model, tokenizer, labels=labels)
 
     def _get_model(num_labels: int, pretrained_model_name_or_path: str):
         config = AutoConfig.from_pretrained(

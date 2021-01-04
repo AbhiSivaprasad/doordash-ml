@@ -28,7 +28,12 @@ def get_hyperparams(model_type: str):
         raise ValueError("Invalid model type")
 
 
-def get_model(args: TrainArgs, labels: List[str], num_classes: int):
+def get_model(args: TrainArgs, labels: List[str], num_classes: int, model_path: str = None):
+    """
+    Build initial model given hyperparameters
+
+    :param model_path: If finetuning then path to existing model
+    """
     model_type = args.model_type
 
     if model_type == 'resnet':
@@ -45,7 +50,8 @@ def get_model(args: TrainArgs, labels: List[str], num_classes: int):
         return HuggingfaceModel.get_model(args.model_name, 
                                           labels, 
                                           num_classes,
-                                          args.lr) 
+                                          args.lr,
+                                          model_path) 
     else:
         raise ValueError("Invalid model type")
 

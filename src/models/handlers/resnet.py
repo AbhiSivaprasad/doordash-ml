@@ -7,7 +7,7 @@ from typing import List
 from pathlib import Path
 from os.path import join
 
-class ResnetModel: 
+class ResnetHandler: 
     MODEL_TYPE = 'resnet'
 
     def __init__(self,
@@ -51,7 +51,7 @@ class ResnetModel:
 
         loss_fn = nn.CrossEntropyLoss()
 
-        return ResnetModel(model, optimizer, scheduler, loss_fn, labels, num_classes, model_name)
+        return ResnetHandler(model, optimizer, scheduler, loss_fn, labels, num_classes, model_name)
     
     def save(self, dir_path: str):
         """
@@ -90,4 +90,4 @@ class ResnetModel:
         with open(join(dir_path, "labels.json")) as f:
             labels = json.load(f)
 
-        return ResnetModel(model, labels=labels, num_classes=state['num_classes'], model_name=state['model_name'])
+        return ResnetHandler(model, labels=labels, num_classes=state['num_classes'], model_name=state['model_name'])

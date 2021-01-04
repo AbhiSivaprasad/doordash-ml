@@ -1,3 +1,4 @@
+import json
 import wandb
 
 import pandas as pd
@@ -9,6 +10,8 @@ from tap import Tap
 from copy import copy
 from tempfile import TemporaryDirectory
 from pathlib import Path
+
+from src.data.taxonomy import Taxonomy
 
 
 class DownloadArgs(Tap):
@@ -38,6 +41,7 @@ class DownloadArgs(Tap):
 
 def download(args: DownloadArgs):
     """Download model per category given properties"""
+    wandb_api = wandb.Api()
 
     # extra_args holds all passed in args not specified in Args
     query_args = args.extra_args
@@ -46,13 +50,14 @@ def download(args: DownloadArgs):
     # if all category ids specificed, then get taxonomy and iterate through categories
     category_ids = args.category_ids
     if args.all_categories:
-        wandb_api.artifact(args.taxonomy_artifact_identifier).download(args.save_dir)
-        taxonomy = Taxonomy.from_csv(join(args.save_dir, "taxonomy.csv"))
+        wandb_api.artifact(args.taxonomy).download(args.download_dir)
+        taxonomy = Taxonomy.from_csv(join(args.download_dir, "taxonomy.csv"))
         category_ids = [node.category_id for node, _ in taxonomy.iter(skip_leaves=True)]
 
+    category_id_to_model_version = {}
     for category_id in category_ids:
         # create dir for category
-        category_dir = join(write_dir, category_id)
+        category_dir = join(args.write_dir, category_id)
         Path(category_dir).mkdir(parents=True, exist_ok=True)
 
         # add category id to query
@@ -60,13 +65,20 @@ def download(args: DownloadArgs):
 
         # filter runs
         runs = wandb_api.runs(path=args.wandb_project, 
-                              filters=query_filters, 
+                              filters=query, 
                               order="+summary_metrics.test loss")
         print(f"Using run {runs[0].name} for category id {category_id}")
 
         # pull output artifact from run
         model_artifact = next(runs[0].logged_artifacts())
-        model_artifact.download(category_dir)
+        wandb_api.artifact(model_artifact.name).download(category_dir)
+        
+        # store model version to place in config
+        category_id_to_model_version[category_id] = model_artifact.name
+
+    # store model versions
+    with open(join(args.write_dir, 'versions.txt'), 'w') as f:
+        json.dump(category_id_to_model_version, f)
 
 
 def build_query(arg_parts: List[str]):
@@ -103,7 +115,7 @@ def add_arg(args, arg_name, arg_values):
     if len(arg_values) == 1:
         arg_values = arg_values[0]
 
-    args[arg_name] = arg_values
+    args[f"config.{arg_name}"] = arg_values
 
 
 def is_arg_name(name: str):
