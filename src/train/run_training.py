@@ -14,18 +14,19 @@ from transformers import DistilBertTokenizer
 from time import time
 
 from ..utils import set_seed, DefaultLogger, upload_checkpoint
+from ..data.utils import get_dataset
 from ..data.data import split_data, encode_target_variable, encode_target_variable_with_labels
 from ..data.taxonomy import Taxonomy
 from ..data.dataset.bert import BertDataset
-from ..data.dataset.image_dataset import ImageDataset
+from ..data.dataset.image import ImageDataset
+from ..data.dataset.hybrid import HybridDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
-from ..models.huggingface import HuggingfaceModel
 from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
 from ..api.wandb import get_latest_artifact_identifier
-from ..models.utils import get_hyperparams, get_model, load_model
+from ..models.utils import get_hyperparams, get_model_handler, load_model
 
 
 def run_training(args: TrainArgs):
@@ -62,7 +63,7 @@ def run_training(args: TrainArgs):
     datasets = []
     for category_id in category_ids:
         # read in train dataset for category
-        dataset = pd.read_csv(join(args.train_dir, category_id, args.train_data_filename))
+        dataset = pd.read_csv(join(args.train_dir, category_id, "train.csv"))
 
         # encode target variable and return labels dict (category id --> class id)
         labels = encode_target_variable(dataset)
@@ -79,6 +80,17 @@ def run_training(args: TrainArgs):
         # keep track of dataset, labels per category
         datasets.append((category_id, data_splits, labels))
 
+    # if a model dir is specified, this is a finetuning starting from stored models
+    # the versions of these models are stored, load them
+    text_model_versions = vision_model_versions = None
+    if args.vision_model_dir is not None:
+        with open(join(args.vision_model_dir, 'versions.txt'), 'r') as f:
+            vision_model_versions = json.load(f)
+
+    if args.text_model_dir is not None:
+        with open(join(args.text_model_dir, 'versions.txt'), 'r') as f:
+            text_model_versions = json.load(f)
+
     # For each dataset, create dataloaders and run training
     for category_id, data_splits, labels in datasets:
         logger.debug("Training Model for Category:", category_id)
@@ -89,10 +101,17 @@ def run_training(args: TrainArgs):
         # store class id labels with model
         with open(join(model_dir, "labels.json"), 'w') as f:
             json.dump(labels, f)
+        
+        # if a model dir is specified, this is a finetuning starting from stored models
+        vision_model_path = (join(args.vision_model_dir, category_id) 
+                             if args.vision_model_dir is not None else None)
+
+        text_model_path = (join(args.text_model_dir, category_id) 
+                           if args.text_model_dir is not None else None)
 
         # grab model and model specific hyperparams
         num_classes = len(labels)
-        model = get_model(args, labels, num_classes) 
+        handler = get_model_handler(args, labels, num_classes, vision_model_path, text_model_path) 
         hyperparam_names = get_hyperparams(args.model_type)
         hyperparams = {hyperparam_name: args.__dict__[hyperparam_name] 
                        for hyperparam_name in hyperparam_names}
@@ -100,6 +119,9 @@ def run_training(args: TrainArgs):
 
         # initialize W&B run
         run_id = str(int(time()))
+        
+        # training starts from model stored at path, so is a finetuning
+        finetune = vision_model_path is not None or text_model_path is not None,  
         wandb_config = {
             "id": run_id,
             "batch_id": timestamp,
@@ -111,6 +133,7 @@ def run_training(args: TrainArgs):
             "model_name": args.model_name,
             "patience": args.patience,
             "labels": labels,
+            "finetune": finetune,
             "train_datasets": sorted(train_data_sources),  # sort so easily queryable
             "test_datasets": sorted(test_data_sources),  # sort so easily queryable
             "separate_test_set": args.test_dir is not None  # False if test set is created by splitting train set
@@ -129,19 +152,20 @@ def run_training(args: TrainArgs):
         for source in train_data_sources + test_data_sources:
             run.use_artifact(source)
 
+        # if finetuning from a model, mark it as input
+        if text_model_versions:
+            run.use_artifact(text_model_versions[category_id])
+        if vision_model_versions:
+            run.use_artifact(vision_model_versions[category_id])
+
         # tracks model properties in W&B
-        wandb.watch(model.model, log="all") 
-        model.model.to(args.device)
+        wandb.watch(handler.model, log="all") 
+        handler.model.to(args.device)
 
         # pass in targets to dataset
-        if args.model_type == 'huggingface':
-            train_data, valid_data, test_data = [
-                BertDataset(split, model.tokenizer, args.max_seq_length) for split in data_splits
-            ]
-        elif args.model_type == 'resnet':
-            train_data, valid_data, test_data = [
-                ImageDataset(split, args.image_dir, args.image_size) for split in data_splits
-            ]
+        train_data, valid_data, test_data = [
+            get_dataset(split, args, handler) for split in data_splits
+        ]
 
         # pytorch data loaders
         train_dataloader = DataLoader(train_data, batch_size=args.train_batch_size, shuffle=True)
@@ -149,7 +173,7 @@ def run_training(args: TrainArgs):
         test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
         # run training
-        train(model=model, 
+        train(model=handler, 
               train_dataloader=train_dataloader, 
               valid_dataloader=valid_dataloader, 
               valid_targets=torch.from_numpy(valid_data.targets.values).to(args.device), 
@@ -158,14 +182,14 @@ def run_training(args: TrainArgs):
               device=args.device)
 
         # Evaluate on test set using model with best validation score
-        model = load_model(model_dir)
+        handler = load_model(model_dir)
         # model.model = torch.nn.DataParallel(model.model)
 
         # move model
-        model.model.to(args.device)
+        handler.model.to(args.device)
         
         # predict & evaluate
-        preds, probs = predict(model.model, test_dataloader, args.device, return_probs=True)
+        preds, probs = predict(handler.model, test_dataloader, args.device, return_probs=True)
         test_acc = evaluate_predictions(preds, test_data.targets.values)
         test_loss = F.nll_loss(torch.log(probs), 
                                torch.from_numpy(test_data.targets.values).to(args.device))

@@ -30,14 +30,15 @@ def batch_predict(l1_model: nn.Module,
 def batch_predict_greedy(l1_model: nn.Module,
                          l2_models_dict: Dict[int, nn.Module], 
                          data_loader: DataLoader,
-                         device: torch.device) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                         device: torch.device,
+                         topk: int = 3) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute batch predictions greedily by maximizing L1, L2 classifiers separately
 
     :param l2_models_dict: key = int L1 class id, value = corresponding L2 model
     """
     # compute L1 predictions
     l1_model.to(device)
-    _, l1_probs = predict(l1_model, data_loader, device, return_probs=True)
+    l1_preds, l1_probs = predict(l1_model, data_loader, device, return_probs=True)
 
     topk_tensor = torch.topk(l1_probs, topk)
     l1_topk_classes = topk_tensor.indices.cpu().numpy()

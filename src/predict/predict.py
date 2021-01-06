@@ -28,6 +28,7 @@ def predict(model: torch.nn.Module,
 
             # generate outputs
             logits = model(input_t)
+            # logits = model(input_ids=input_t[0], attention_mask=input_t[1])[0]
 
             # compute probabilities
             if return_probs:

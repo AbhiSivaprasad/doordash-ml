@@ -114,6 +114,7 @@ def train_epoch(model: torch.nn.Module,
         targets = targets.to(device)
         
         # predict and compute loss
+        # logits = model(input_ids=input_t[0], attention_mask=input_t[1])[0]
         logits = model(input_t)
 
         loss = loss_fn(logits, targets)

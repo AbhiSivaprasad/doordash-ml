@@ -8,13 +8,14 @@ from os.path import join, isdir
 from torch.utils.data import DataLoader
 from pathlib import Path
 
-from ..utils import DefaultLogger, load_checkpoint
+from ..utils import DefaultLogger
 from .batch_predict import batch_predict
 from .predict import predict
 from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, evaluate_lr_precision
 from ..args import BatchPredictArgs
 from ..data.dataset.bert import BertDataset
 from ..data.taxonomy import Taxonomy
+from ..models.utils import load_model
 
 from transformers import DistilBertTokenizer
 
@@ -42,13 +43,8 @@ def run_batch_prediction(args: BatchPredictArgs):
     Path(category_dir).mkdir()
 
     # download and load model
-    model_artifact_identifier = "model-grocery:v1"
-    wandb_api.artifact(model_artifact_identifier).download(category_dir)
-    l1_model, l1_tokenizer = load_checkpoint(category_dir)
-
-    # load l1 labels
-    with open(join(category_dir, "labels.json")) as f:
-        l1_labels = json.load(f)
+    model = load_model(join(args.model_dir, 'grocery'))
+    l1_model, l1_tokenizer, l1_labels = model.model, model.tokenizer, model.labels
 
     # hack to get l1 models, write an iterator when generalizing
     l2_models_dict = {}  # key = class id, value = model
@@ -59,15 +55,11 @@ def run_batch_prediction(args: BatchPredictArgs):
             continue
 
         # load checkpoint
-        category_dir = join(args.models_dir, node.category_id)
-        model = load_checkpoint(category_dir)
-
-        # load class labels, list with element i = category id of class i
-        with open(join(category_dir, "labels.json")) as f:
-            labels = json.load(f)
+        category_dir = join(args.model_dir, node.category_id)
+        model = load_model(category_dir)
 
         l2_models_dict[node.category_id] = model.model
-        l2_labels_dict[node.category_id] = labels
+        l2_labels_dict[node.category_id] = model.labels
 
     # assumes same tokenizer used on all models
     test_data = BertDataset(test_data, l1_tokenizer, args.max_seq_length)
@@ -104,9 +96,7 @@ def run_batch_prediction(args: BatchPredictArgs):
     df_preds = df_preds[columns]
 
     # aggregate and write results
-    results = pd.concat([pd.DataFrame({
-        'Name': test_data.data["Name"],
-    }), df_preds], axis=1)
+    results = pd.concat([test_data.data, df_preds], axis=1)
 
-    results.to_csv(join(args.save_dir, "results.csv"), index=False)
+    results.to_csv(args.write_path, index=False)
 
