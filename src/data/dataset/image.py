@@ -14,12 +14,14 @@ class ImageDataset(torch.utils.data.Dataset):
                  data: pd.DataFrame,
                  image_dir: str, 
                  image_size: int, 
-                 val: bool = False):
+                 val: bool = False,
+                 preserve_na: bool = False):
         self._image_dir = image_dir
 
         # remove rows without images
-        self._data = data[data["Image Name"].notna()]
-        self._data.reset_index(drop=True, inplace=True)
+        if not preserve_na:
+            self._data = data[data["Image Name"].notna()]
+            self._data.reset_index(drop=True, inplace=True)
 
         # image transform
         self.transform = (Transformer(image_size).val_transform 
@@ -30,10 +32,16 @@ class ImageDataset(torch.utils.data.Dataset):
         return len(self._data)
 
     def __getitem__(self, index):
-        ImageFile.LOAD_TRUNCATED_IMAGES = True  # what does this actually do?
-
+        # will skip corrupted images
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
+        
         # locate image
         image_name = self._data.loc[index, "Image Name"]
+
+        if pd.isnull(image_name):
+            return None, None
+
+        # get the dir image is stored in
         hash_dir = self.get_hash_dir(image_name)
 
         # path to image

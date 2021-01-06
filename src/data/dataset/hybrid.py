@@ -1,10 +1,12 @@
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+from .bert import BertDataset
+from .image import ImageDataset
 
 
 class HybridDataset(Dataset):
-    def __init__(self, image_dataset: ImageDataset, text_dataset: TextDataset):
+    def __init__(self, image_dataset: ImageDataset, text_dataset: BertDataset):
         """
         :param data: Pandas Dataframe containing Dataset. 
                      Column "target" contains int target class. Column "name" contains str item name

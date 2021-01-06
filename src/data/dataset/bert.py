@@ -3,20 +3,30 @@ import torch
 from torch.utils.data import Dataset
 
 class BertDataset(Dataset):
-    def __init__(self, data: pd.DataFrame, tokenizer, max_len: int):
+    def __init__(self, data: pd.DataFrame, tokenizer, max_len: int, preserve_na: bool = False):
         """
         :param data: Pandas Dataframe containing Dataset. 
                      Column "target" contains int target class. Column "name" contains str item name
         """
+        if not preserve_na:
+            self.data = data[data["Name"].notna()]
+            self._data.reset_index(drop=True, inplace=True)
+
         self.len = len(data)
-        self.data = data
         self.tokenizer = tokenizer
         self.max_len = max_len
-        
+        self.preserve_na = preserve_na
+
+       
     def __getitem__(self, index):
-        # TODO: batch tokenize 
+        name = self.data.Name[index]
+
+        # no name provided for item
+        if pd.isnull(name):
+            return None, None
+
         inputs = self.tokenizer(
-            str(self.data.Name[index]),
+            str(name),
             add_special_tokens=True,
             max_length=self.max_len,
             padding='max_length',
@@ -30,7 +40,7 @@ class BertDataset(Dataset):
 
         targets = (torch.tensor(self.data.target[index], dtype=torch.long) 
                    if "target" in self.data.columns 
-                   else None)
+                   else -1)
         
         return item, targets
 
