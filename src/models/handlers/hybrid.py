@@ -22,6 +22,7 @@ class HybridHandler:
                  num_classes: int,
                  tokenizer = None,
                  optimizer = None,
+                 hybrid_embedding_dim: int = None,
                  hybrid_output_head: nn.Module = None,
                  loss_fn = None,
                  labels: List[str] = None,
@@ -33,6 +34,7 @@ class HybridHandler:
         self.text_output_head = text_output_head
         self.vision_output_head = vision_output_head
         self.hybrid_output_head = hybrid_output_head
+        self.hybrid_embedding_dim = hybrid_embedding_dim
         self.vision_model_name = vision_model_name
         self.num_classes = num_classes
         self.tokenizer = tokenizer
@@ -49,6 +51,7 @@ class HybridHandler:
                                         self.vision_output_head, 
                                         self.text_output_head, 
                                         self.num_classes, 
+                                        self.hybrid_embedding_dim,
                                         self.hybrid_output_head,
                                         self.hidden_dim, 
                                         self.dropout) 
@@ -91,7 +94,7 @@ class HybridHandler:
             num_classes,
             tokenizer,
             hybrid_output_head=hybrid_output_head,
-            labels=labels, 
+            labels=labels
         )
 
     @classmethod
@@ -138,6 +141,11 @@ class HybridHandler:
         optimizer = torch.optim.Adam
         loss_fn = nn.CrossEntropyLoss()
 
+        # hybrid embedding dim = vision embedding dim + text embedding dim
+        # the inputs to the output heads must have the embedding dimensions
+        # text output head is a nn.Sequential so use first layer
+        hybrid_embedding_dim = vision_output_head.in_features + text_output_head[0].in_features
+
         return HybridHandler(
             text_model, 
             vision_model, 
@@ -147,11 +155,12 @@ class HybridHandler:
             num_classes, 
             tokenizer, 
             optimizer, 
-            loss_fn, 
-            labels, 
-            learning_rate, 
-            hidden_dim, 
-            dropout
+            hybrid_embedding_dim=hybrid_embedding_dim,
+            loss_fn=loss_fn, 
+            labels=labels, 
+            learning_rate=learning_rate, 
+            hidden_dim=hidden_dim, 
+            dropout=dropout
         )
 
     def save(self, dir_path: str):
@@ -188,5 +197,3 @@ class HybridHandler:
             json.dump({
                 "model_type": self.MODEL_TYPE
             }, f)
-
-

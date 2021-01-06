@@ -27,16 +27,16 @@ class ResnetHandler:
         self.model_name = model_name
 
     @classmethod
-    def get_model(cls, 
-                  model_name: str,  # "resnet18"
-                  labels: List[str],
-                  num_classes: int,
-                  pretrained: bool = True,
-                  lr: float = 0.1,
-                  lr_decay: float = 0.1,
-                  momentum: float = 0.9,
-                  weight_decay: float = 1e-4,
-                  lr_step_size: int = 30) -> None:
+    def load_raw(cls, 
+                 model_name: str,  # "resnet18"
+                 labels: List[str],
+                 num_classes: int,
+                 pretrained: bool = True,
+                 lr: float = 0.1,
+                 lr_decay: float = 0.1,
+                 momentum: float = 0.9,
+                 weight_decay: float = 1e-4,
+                 lr_step_size: int = 30) -> None:
         # create model
         if pretrained: 
             model = models.__dict__[model_name](pretrained=True, num_classes=1000)

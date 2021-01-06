@@ -24,18 +24,17 @@ class HuggingfaceHandler:
         self.loss_fn = loss_fn
         self.labels = labels
 
-        # standardize forward pass by saving __call__ as __callsave__
-        # __call__ is reassigned to process inputs then route to __callsave__
-        #if '__callsave__' not in dir(self.model):
-        #    self.model.__class__.__callsave__ = self.model.__call__
-        #    self.model.__class__.__call__ = self.standardized_forward
+        # rewire model's forward to standardize it
+        self.model.forward_save = self.model.forward
+        self.model.forward = self.standardized_forward
 
     @classmethod
-    def download_model(cls, 
-                       model_name: str,
-                       labels: List[str],
-                       num_classes: int, 
-                       lr: float) -> None:
+    def load_raw(cls, 
+                 model_name: str,
+                 labels: List[str],
+                 num_classes: int, 
+                 lr: float,
+                 model_path = None) -> None:
         # If no model path, then model name is a huggingface name to be downloaded
         model_identifier = model_path if model_path is not None else model_name
 
@@ -107,5 +106,5 @@ class HuggingfaceHandler:
 
     def standardized_forward(self, input_list):
         input_ids, attention_mask = input_list
-        return self.model.__callsave__(input_ids=input_ids, attention_mask=attention_mask)[0]
+        return self.model.forward_save(input_ids=input_ids, attention_mask=attention_mask)[0]
 
