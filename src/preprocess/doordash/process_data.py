@@ -6,6 +6,7 @@ import random
 import validators
 import numpy as np
 import pandas as pd
+import os
 
 from tempfile import TemporaryDirectory
 from typing import Dict
@@ -34,6 +35,8 @@ class PreprocessArgs(Tap):
     """Flag specifying whether to download image URLs to S3"""
     image_bucket_name: str = "glisten-images"
     """Name of s3 bucket to upload images to if download_images set to True"""
+    image_bucket_folder: str = "doordash"
+    """Name of folder in s3 bucket to upload images to if download_images set to True"""
 
     # W&B args
     upload_wandb: bool = False
@@ -130,12 +133,16 @@ def preprocess(args: PreprocessArgs):
     # download images to s3
     if args.download_images:
         Path(args.image_dir).mkdir(exist_ok=True, parents=True)
+        
+        # skip already downloaded images if any
+        current_images = [f for root, dirs, files in os.walk(args.image_dir) for f in files]
+        downloaded_mask = df["Image Name"].isin(set(current_images))
 
         # download images
         print("Downloading images...")
-        download_images_from_urls(list(df.loc[valid_urls_mask]["Image URL"]),
+        download_images_from_urls(list(df.loc[valid_urls_mask & ~downloaded_mask]["Image URL"]),
                                   args.image_dir,
-                                  list(df.loc[valid_urls_mask]["Image Name"]))
+                                  list(df.loc[valid_urls_mask & ~downloaded_mask]["Image Name"]))
     
         # upload image directory to s3
         print("Uploading images to s3...")
@@ -143,6 +150,7 @@ def preprocess(args: PreprocessArgs):
         upload_directory_to_s3(s3_client=s3_client, 
                                bucket_name=args.image_bucket_name, 
                                dirpath=args.image_dir,
+                               object_prefix=args.image_bucket_folder,
                                filenames=list(df.loc[valid_urls_mask]["Image Name"]))
 
     # split in train, test

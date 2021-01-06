@@ -20,12 +20,14 @@ from pathlib import Path
 def upload_directory_to_s3(s3_client, 
                            bucket_name, 
                            dirpath: str, 
+                           object_prefix: str,
                            filenames: List[str], 
                            num_workers: int = 16):
     """Upload a directory recursively to s3"""
     # recursively collect all filepaths
     filepaths = [join(root, f) for root, dirs, files in walk(dirpath) for f in files]
     object_names = [relpath(filepath, dirpath) for filepath in filepaths]
+    object_keys = [join(object_prefix, object_name) for object_name in object_names]
 
     # define function instead of partial since positional args needed for map
     def thread_f(filepath, key):
@@ -34,13 +36,13 @@ def upload_directory_to_s3(s3_client,
     # upload in parallel with a thread pool
     mpp.Pool.istarmap = istarmap
     for _ in tqdm(
-        mpp.ThreadPool(num_workers).istarmap(thread_f, zip(filepaths, object_names)), 
+        mpp.ThreadPool(num_workers).istarmap(thread_f, zip(filepaths, object_keys)), 
         total=len(filenames)
     ):
         pass
 
 
-def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str], num_workers: int = 16):
+def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str], num_workers: int = 32):
     """Download images to a local dir""" 
     filepaths = []
     hash_dirs = set()
@@ -75,10 +77,11 @@ def download_image(url: str, filepath: str):
 
     # fetch image
     try: 
-        req = urllib.request.Request(url)
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         resp = urllib.request.urlopen(req, timeout=15)
-    except:
-        print(url)
+    except Exception as e:
+        print(f"Failed Request: {url}")
+        raise e
 
     # process image
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
@@ -88,7 +91,8 @@ def download_image(url: str, filepath: str):
     img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
     
     # write image
-    cv2.imwrite(filepath, img)
+    if not cv2.imwrite(filepath, img):
+        return Exception("could not write image")
 
     # move image (make sure completely downloaded)
     if stat(filepath).st_size == 0:
