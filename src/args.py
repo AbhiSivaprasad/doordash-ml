@@ -76,21 +76,25 @@ class TrainArgs(CommonArgs):
     """List of W&B artifact identifiers which constructed data in test_dir. For logging."""
 
     # W & B args
-    train_data_filename: str = "train.csv"
-    """File name of train data in dataset artifact"""
     taxonomy_artifact_identifier: str = None
     """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
 
     # Model args
     model_name: str
     """Name of model to train, format depends on model type"""
-    model_type: Literal["huggingface", "resnet"] = "huggingface"
+    vision_model_dir: str = None
+    """Directory with one subdirectory per category containing a model. 
+    Used if loading model from dir for vision or hybrid"""
+    text_model_dir: str = None
+    """Directory with one subdirectory per category containing a model. 
+    Used if loading model from dir for text or hybrid"""
+    model_type: Literal["huggingface", "resnet", "hybrid"] = "huggingface"
     """Type of model to train"""
     # """Source to pull model from"""
     cls_hidden_dim: int = 768
     """Size of hidden layer in classification head"""
     cls_dropout: float = 0.3
-    """Dropout after hidden layer activation in clhahlassification head"""
+    """Dropout after hidden layer activation in classification head"""
 
     # Resnet Model args
     pretrained: bool = True
@@ -111,7 +115,7 @@ class TrainArgs(CommonArgs):
     # Training args
     epochs: int = 10
     """Number of epochs to train model for"""
-    lr: float = 1e-5  # default for bert finetuning, for resnet should be 0.1
+    lr: float = 1e-5  # default for bert finetuning
     """Learning rate for training"""
     patience: int = 3
     """Number of epochs to wait for better val accuracy before early stopping"""
@@ -174,6 +178,10 @@ class PredictArgs(CommonPredictArgs):
 class BatchPredictArgs(CommonPredictArgs):
     test_path: str
     """Path to csv to test on"""
+    write_path: str
+    """Path to save csv results"""
+    model_dir: str
+    """Path to directory with models. Contains subdirectories named after category id with one model each"""
     taxonomy: str
     """W&B identifier of taxonomy"""
     strategy: str = "greedy"

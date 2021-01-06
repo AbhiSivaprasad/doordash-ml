@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 
@@ -8,7 +9,8 @@ class HybridModel(nn.Module):
                  vision_output_head: nn.Module,
                  text_output_head: nn.Module,
                  num_classes: int, 
-                 hybrid_output_head: nn.Module = None
+                 hybrid_embedding_dim: int = None,
+                 hybrid_output_head: nn.Module = None,
                  hidden_dim: int = 2048, 
                  dropout: float = 0.3):
         super(HybridModel, self).__init__()
@@ -24,7 +26,7 @@ class HybridModel(nn.Module):
         # initialize new output head if hybrid head is not supplied
         if hybrid_output_head is None:
             self.hybrid_output_head = nn.Sequential([
-                nn.Linear(, hidden_dim),
+                nn.Linear(hybrid_embedding_dim, hidden_dim),
                 nn.ReLU(),
                 nn.Dropout(dropout),
                 nn.Linear(hidden_dim, num_classes)
@@ -38,17 +40,22 @@ class HybridModel(nn.Module):
 
         # pure text model
         if text and not image:
-            text_embedding = self.text_model(text)
+            with torch.no_grad():
+                text_embedding = self.text_model(text)
             return self.text_output_head(text_embedding)
 
         # pure vision model
         if image and not text:
-            vision_embedding = self.vision_model(image)
+            with torch.no_grad():
+                vision_embedding = self.vision_model(image)
             return self.vision_output_head(vision_embedding)
 
         # concatenate embeddings
         if text and image:
-            text_embedding = self.text_model(text)
-            vision_embedding = self.vision_model(image)
-            embedding = torch.cat((vision_embedding, text_embedding), 0)
+            with torch.no_grad():
+                text_embedding = self.text_model(text)
+                vision_embedding = self.vision_model(image)
+            import pdb
+            pdb.set_trace()
+            embedding = torch.cat((vision_embedding, text_embedding), 1)
             return self.hybrid_output_head(embedding)
