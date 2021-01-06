@@ -42,7 +42,7 @@ def upload_directory_to_s3(s3_client,
         pass
 
 
-def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str], num_workers: int = 32):
+def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str], num_workers: int = 64):
     """Download images to a local dir""" 
     filepaths = []
     hash_dirs = set()
@@ -66,11 +66,17 @@ def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str
 
     # download in parallel with a thread pool
     mpp.Pool.istarmap = istarmap
-    for _ in tqdm(mpp.ThreadPool(num_workers).istarmap(download_image, zip(urls, filepaths)), total=len(urls)):
-        pass
+    bad_urls = [
+        url for url in tqdm(
+            mpp.ThreadPool(num_workers).istarmap(download_image, zip(urls, filepaths)), 
+            total=len(urls)
+        ) if url is not None
+    ]        
+    
+    return bad_urls
 
 
-def download_image(url: str, filepath: str):
+def download_image(url: str, filepath: str, tries: int = 1):
     """Download image from url to filepath"""
     # already doing python multiprocessing, so prob better to not double up
     cv2.setNumThreads(0)
@@ -80,8 +86,14 @@ def download_image(url: str, filepath: str):
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         resp = urllib.request.urlopen(req, timeout=15)
     except Exception as e:
-        print(f"Failed Request: {url}")
-        raise e
+        # try again
+        if tries > 0:
+            print(f"Retrying: {url}")
+            return download_image(url, filepath, tries - 1)
+        else:
+            print(f"Failed Request: {url}")
+            print(e)
+            return url
 
     # process image
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
@@ -96,8 +108,12 @@ def download_image(url: str, filepath: str):
 
     # move image (make sure completely downloaded)
     if stat(filepath).st_size == 0:
-        print(url)
-        raise ValueError('File is empty', filepath)
+        # try again
+        if tries > 0:
+            print(f"Retrying: {url}")
+            return download_image(url, filepath, tries - 1)
+        else:
+            raise ValueError('File is empty', filepath)
 
 
 def istarmap(self, func, iterable, chunksize=1):

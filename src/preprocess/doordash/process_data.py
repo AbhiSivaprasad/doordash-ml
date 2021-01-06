@@ -140,10 +140,15 @@ def preprocess(args: PreprocessArgs):
 
         # download images
         print("Downloading images...")
-        download_images_from_urls(list(df.loc[valid_urls_mask & ~downloaded_mask]["Image URL"]),
-                                  args.image_dir,
-                                  list(df.loc[valid_urls_mask & ~downloaded_mask]["Image Name"]))
-    
+        bad_urls = download_images_from_urls(list(df.loc[valid_urls_mask & ~downloaded_mask]["Image URL"]),
+                                             args.image_dir,
+                                             list(df.loc[valid_urls_mask & ~downloaded_mask]["Image Name"]))
+
+        # remove bad df image urls
+        bad_urls_mask = df["Image URL"].isin(set(bad_urls))
+        df.loc[bad_urls_mask, "Image URL"] = np.nan
+        df.loc[bad_urls_mask, "Image Name"] = np.nan
+        
         # upload image directory to s3
         print("Uploading images to s3...")
         s3_client = boto3.client('s3')
