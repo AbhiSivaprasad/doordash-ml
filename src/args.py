@@ -49,9 +49,9 @@ class TrainArgs(CommonArgs):
     """Seed for reproducibility"""
     max_seq_length: int = 256
     """Max sequence length for BERT models. Longer inputs are truncated"""
-    train_batch_size: int = 16
+    train_batch_size: int = 32
     """Batch size for model training"""
-    predict_batch_size: int = 16
+    predict_batch_size: int = 32
     """Batch size for model prediction"""
     train_size: float = 0.8
     """Size of train split"""

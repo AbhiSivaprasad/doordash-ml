@@ -10,7 +10,7 @@ class BertDataset(Dataset):
         """
         if not preserve_na:
             self.data = data[data["Name"].notna()]
-            self._data.reset_index(drop=True, inplace=True)
+            self.data.reset_index(drop=True, inplace=True)
 
         self.len = len(data)
         self.tokenizer = tokenizer

@@ -184,6 +184,9 @@ def run_training(args: TrainArgs):
               save_dir=model_dir, 
               device=args.device)
 
+        # free GPU
+        handler.model.to(torch.device('cpu'))
+
         # Evaluate on test set using model with best validation score
         handler = load_model(model_dir)
         if torch.cuda.device_count() > 1:
@@ -197,6 +200,9 @@ def run_training(args: TrainArgs):
         test_acc = evaluate_predictions(preds, test_data.targets.values)
         test_loss = F.nll_loss(torch.log(probs), 
                                torch.from_numpy(test_data.targets.values).to(args.device))
+
+        # free GPU
+        handler.model.to(torch.device('cpu'))
 
         # Track model and results
         upload_checkpoint(run, category_id, model_dir)
