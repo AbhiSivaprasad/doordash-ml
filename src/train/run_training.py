@@ -31,6 +31,7 @@ from ..models.utils import get_hyperparams, get_model_handler, load_model
 
 def run_training(args: TrainArgs):
     # create logging dir
+    print(args)
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
     timestamp = str(int(time()))
 
@@ -115,7 +116,9 @@ def run_training(args: TrainArgs):
         hyperparam_names = get_hyperparams(args.model_type)
         hyperparams = {hyperparam_name: args.__dict__[hyperparam_name] 
                        for hyperparam_name in hyperparam_names}
-        # model.model = torch.nn.DataParallel(model.model)
+
+        if torch.cuda.device_count() > 1:
+            handler.model = torch.nn.DataParallel(handler.model)
 
         # initialize W&B run
         run_id = str(int(time()))
@@ -183,7 +186,8 @@ def run_training(args: TrainArgs):
 
         # Evaluate on test set using model with best validation score
         handler = load_model(model_dir)
-        # model.model = torch.nn.DataParallel(model.model)
+        if torch.cuda.device_count() > 1:
+            handler.model = torch.nn.DataParallel(handler.model)
 
         # move model
         handler.model.to(args.device)

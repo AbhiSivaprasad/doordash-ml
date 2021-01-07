@@ -109,7 +109,7 @@ class TrainArgs(CommonArgs):
     """Size of image inputs"""
     lr_decay: float = 0.1
     """Every lr_step_size epochs, decay learning rate"""
-    lr_step_size: float = 30
+    lr_step_size: float = 20
     """Every lr_step_size epochs, decay learning rate"""
 
     # Training args

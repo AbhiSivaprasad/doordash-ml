@@ -61,8 +61,9 @@ class ResnetHandler:
         Path(dir_path).mkdir(parents=True, exist_ok=True)
         
         # save state
+        model = self.model.module if hasattr(self.model, 'module') else self.model
         state = {
-            'model': self.model.state_dict(),
+            'model': model.state_dict(),
             'num_classes': self.num_classes,
             'model_name': self.model_name
         }
