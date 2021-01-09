@@ -2,6 +2,7 @@ import os
 import torch
 
 from datetime import datetime
+from time import time
 from tempfile import TemporaryDirectory
 from typing import List, Optional
 from typing_extensions import Literal
@@ -74,6 +75,8 @@ class TrainArgs(CommonArgs):
     """List of W&B artifact identifiers which constructed data in train_dir. For logging."""
     test_data_sources: List[str]
     """List of W&B artifact identifiers which constructed data in test_dir. For logging."""
+    batch_id: str = str(int(time()))
+    """Unified id for all runs launched by one script. Defaults to timestamp"""
 
     # W & B args
     taxonomy_artifact_identifier: str = None

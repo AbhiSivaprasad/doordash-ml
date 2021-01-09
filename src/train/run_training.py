@@ -33,7 +33,6 @@ def run_training(args: TrainArgs):
     # create logging dir
     print(args)
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
-    timestamp = str(int(time()))
 
     # set seed for reproducibility
     set_seed(args.seed)
@@ -127,7 +126,7 @@ def run_training(args: TrainArgs):
         finetune = vision_model_path is not None or text_model_path is not None,  
         wandb_config = {
             "id": run_id,
-            "batch_id": timestamp,
+            "batch_id": args.batch_id,
             "category_id": category_id,
             "train_dataset_size": len(data_splits[0]),
             "num_epochs": args.epochs,
