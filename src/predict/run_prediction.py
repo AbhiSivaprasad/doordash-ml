@@ -9,21 +9,19 @@ from os.path import join
 from pathlib import Path
 from torch.utils.data import DataLoader
 
-from ..utils import DefaultLogger, load_best_model, load_checkpoint
+from ..utils import DefaultLogger
 from ..data.data import encode_target_variable_with_labels
-from ..data.bert import BertDataset
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
 from ..args import PredictArgs
 from ..api.wandb import get_latest_artifact_identifier
 from ..data.taxonomy import Taxonomy
+from ..data.utils import get_dataset
+from ..models.utils import load_model_handler
 
 
 def run_prediction(args: PredictArgs):
     """Run predictions on a dataset"""
-    # dirs to hold model, data
-    model_dir = join(args.save_dir, "model")
-
     # initialize wandb run
     wandb_api = wandb.Api({"project": args.wandb_project})
 
@@ -38,72 +36,53 @@ def run_prediction(args: PredictArgs):
     full_eval_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, dataset) 
                                      for dataset in args.eval_datasets]
 
-    full_train_dataset_identifiers = [get_latest_artifact_identifier(wandb_api, dataset) 
-                                      for dataset in args.train_datasets]
-
-    full_model_artifact_identifiers = []
-    for category_id in category_ids:
-        query_filters = {
-            "config.category_id": category_id,
-            "config.train_datasets": sorted(full_train_dataset_identifiers),
-        }
-
-        runs = wandb_api.runs(path=args.wandb_project, filters=query_filters, order="+summary_metrics.test loss")
-
-        # pull output artifact from run
-        artifact = next(runs[0].logged_artifacts())
-        full_model_artifact_identifiers.append(artifact.name)
-
-        print(f"Using run {runs[0].name} for category id {category_id}")
+    # load model versions
+    with open(join(args.model_dir, 'versions.txt'), 'r') as f:
+        model_versions = json.load(f)
 
     # important to sort lists so its easily queryable
     wandb_config = {
-        "model_identifiers": sorted(full_model_artifact_identifiers),
         "eval_datasets": sorted(full_eval_dataset_identifiers),
-        "train_datasets": sorted(full_train_dataset_identifiers),
         "category_ids": category_ids
     }
     
     # initialize W&B run
     run = wandb.init(project=args.wandb_project, job_type="eval", config=wandb_config)
 
+    # mark data sources as input to run
+    for eval_dataset_identifier in full_eval_dataset_identifiers:
+        run.use_artifact(eval_dataset_identifier)
+ 
     # collect summary metrics
     test_accs = []
     test_losses = []
     predictions = []
 
-    for category_id, model_artifact_identifier in zip(category_ids, full_model_artifact_identifiers):
-        # dir to hold category model
-        category_dir = join(model_dir, category_id)
-        Path(category_dir).mkdir(parents=True)  # makes parent directories
-
-        # mark data sources as input to run
-        run.use_artifact(model_artifact_identifier)
-        for eval_dataset_identifier in full_eval_dataset_identifiers:
-            run.use_artifact(eval_dataset_identifier)
+    for category_id in category_ids:
+        # mark model version as input to run
+        run.use_artifact(model_versions[category_id])
 
         # download and read model
-        artifact = wandb_api.artifact(model_artifact_identifier).download(category_dir)
-        model, tokenizer = load_checkpoint(category_dir)
+        model_dir = join(args.model_dir, category_id)
+        handler = load_model_handler(model_dir)
 
         # download and read test data
         test_data = pd.read_csv(join(args.data_dir, category_id, "test.csv"), index_col=0)
 
         # encode a target variable with the given labels
-        with open(join(category_dir, "labels.json")) as f:
+        with open(join(model_dir, "labels.json")) as f:
             labels = json.load(f)
 
         encode_target_variable_with_labels(test_data, labels)
 
-        # move model to GPU
-        model.to(args.device)
-
         # assumes same tokenizer used on all models
-        test_dataset = BertDataset(test_data, tokenizer, args.max_seq_length)
-        test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size)
+        test_dataset = get_dataset(test_data, args, handler)
+        test_dataloader = DataLoader(test_dataset, batch_size=args.predict_batch_size)
 
         # get predictions and prediction probabilities
-        preds, probs = predict(model, test_dataloader, args.device, return_probs=True)
+        handler.model.to(args.device)
+        preds, probs = predict(handler.model, test_dataloader, args.device, return_probs=True)
+        handler.model.to(torch.device('cpu'))
 
         # find probability of predicted class as confidence score
         confidence_scores = torch.max(probs, dim=1)[0].cpu().numpy()

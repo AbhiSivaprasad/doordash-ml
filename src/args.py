@@ -153,40 +153,31 @@ class CommonPredictArgs(CommonArgs):
     """Max sequence length for BERT models. Longer inputs are truncated"""
     batch_size: int = 32
     """Batch size during model prediction"""
+    image_dir: str = None
+    """Path to directory with images if using image model"""
+    image_size: int = 256
+    """Size of image inputs"""
+    model_dir: str
+    """Path to directory with models. Contains subdirectories named after category id with one model each"""
+    taxonomy: str = None
+    """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
  
-
 class PredictArgs(CommonPredictArgs):
     data_dir: str
     """Path to test directory"""
     eval_datasets: List[str]
     """List of W&B artifact identifiers which constructed data in data_dir. For logging."""
-    train_datasets: List[str]
-    """List of W&B artifact ideentifiers of datasets used to train model. For locating appropriate model."""
     category_ids: List[str] = []
     """Category ids to predict for"""
     all_categories: bool = False
     """If True, run on all categories in taxonomy. taxonomy_artifact_identifier must be specified"""
-    autoload_best_model: bool = False
-    """Recursively sweep models_dir for the model with highest validation score
-    if False then models_dir must directly contain the model"""
-    model_artifact_identifiers: List[str] = []
-    """
-    W&B identifiers for desired model artifacts, aligning to category_ids.
-    If empty then latest model for each category id pulled
-    """
-    taxonomy: str = None
-    """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
- 
+
 
 class BatchPredictArgs(CommonPredictArgs):
     test_path: str
     """Path to csv to test on"""
     write_path: str
     """Path to save csv results"""
-    model_dir: str
-    """Path to directory with models. Contains subdirectories named after category id with one model each"""
-    taxonomy: str
-    """W&B identifier of taxonomy"""
     strategy: str = "greedy"
     """Strategy to merge L1, L2 predictions. Options: greedy, complete"""
 
