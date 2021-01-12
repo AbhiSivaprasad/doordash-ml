@@ -36,10 +36,10 @@ def get_hyperparams(model_type: str):
 
 
 def get_model_handler(args: TrainArgs, 
-              labels: List[str], 
-              num_classes: int, 
-              vision_model_path: str = None, 
-              text_model_path: str = None):
+                      labels: List[str], 
+                      num_classes: int, 
+                      vision_model_path: str = None, 
+                      text_model_path: str = None):
     """
     Build initial model given hyperparameters
 
@@ -73,7 +73,7 @@ def get_model_handler(args: TrainArgs,
         raise ValueError("Invalid model type")
 
 
-def load_model(dir_path: str):
+def load_model_handler(dir_path: str):
     with open(join(dir_path, "master-config.json")) as f:
          config = json.load(f)
 

@@ -25,37 +25,37 @@ class HybridModel(nn.Module):
 
         # initialize new output head if hybrid head is not supplied
         if hybrid_output_head is None:
-            self.hybrid_output_head = nn.Sequential([
+            self.hybrid_output_head = nn.Sequential(
                 nn.Linear(hybrid_embedding_dim, hidden_dim),
                 nn.ReLU(),
                 nn.Dropout(dropout),
                 nn.Linear(hidden_dim, num_classes)
-            ])
+            )
         else:
             self.hybrid_output_head = hybrid_output_head
 
     def forward(self, x):
         text, image = x
+        has_text, has_image = text is not None, image is not None
         vision_embedding = text_embedding = None
 
         # pure text model
-        if text and not image:
+        if has_text and not has_image:
             with torch.no_grad():
-                text_embedding = self.text_model(text)
+                text_embedding = self.text_model(text)[:, 0]
             return self.text_output_head(text_embedding)
 
         # pure vision model
-        if image and not text:
+        if has_image and not has_text:
             with torch.no_grad():
                 vision_embedding = self.vision_model(image)
             return self.vision_output_head(vision_embedding)
 
         # concatenate embeddings
-        if text and image:
+        if has_text and has_image:
             with torch.no_grad():
-                text_embedding = self.text_model(text)
+                text_embedding = self.text_model(text)[:, 0]
                 vision_embedding = self.vision_model(image)
-            import pdb
-            pdb.set_trace()
+
             embedding = torch.cat((vision_embedding, text_embedding), 1)
             return self.hybrid_output_head(embedding)
