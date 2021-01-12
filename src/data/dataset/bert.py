@@ -11,8 +11,9 @@ class BertDataset(Dataset):
         if not preserve_na:
             self.data = data[data["Name"].notna()]
             self.data.reset_index(drop=True, inplace=True)
+        else:
+            self.data = data
 
-        self.len = len(data)
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.preserve_na = preserve_na
@@ -45,7 +46,7 @@ class BertDataset(Dataset):
         return item, targets
 
     def __len__(self):
-        return self.len
+        return len(self.data)
 
     @property
     def targets(self):

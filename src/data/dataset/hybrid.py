@@ -12,12 +12,20 @@ class HybridDataset(Dataset):
                      Column "target" contains int target class. Column "name" contains str item name
         """
         self.image_dataset = image_dataset
-        self.text_dataset = text_dataset        
+        self.text_dataset = text_dataset
+
+        mask = text_dataset.data["Name"].notna() & image_dataset.data["Image Name"].notna()
+
+        self.image_dataset.data = self.image_dataset.data[mask]
+        self.image_dataset.data.reset_index(drop=True, inplace=True)
+
+        self.text_dataset.data = self.text_dataset.data[mask]
+        self.text_dataset.data.reset_index(drop=True, inplace=True)
 
         assert len(self.image_dataset) == len(self.text_dataset)
         assert self.image_dataset.targets.equals(self.text_dataset.targets)
 
-        self.target = self.image_dataset.targets
+        self.targets = self.image_dataset.targets
 
     def __getitem__(self, index):
         image, image_target = self.image_dataset[index]
@@ -32,6 +40,3 @@ class HybridDataset(Dataset):
     def __len__(self):
         return len(self.image_dataset)
 
-    @property
-    def targets(self):
-        return self.data["target"]

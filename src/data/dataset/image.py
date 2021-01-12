@@ -20,8 +20,10 @@ class ImageDataset(torch.utils.data.Dataset):
 
         # remove rows without images
         if not preserve_na:
-            self._data = data[data["Image Name"].notna()]
-            self._data.reset_index(drop=True, inplace=True)
+            self.data = data[data["Image Name"].notna()]
+            self.data.reset_index(drop=True, inplace=True)
+        else:
+            self.data = data
 
         # image transform
         self.transform = (Transformer(image_size).val_transform 
@@ -29,26 +31,26 @@ class ImageDataset(torch.utils.data.Dataset):
                           else Transformer(image_size).train_transform)
 
     def __len__(self):
-        return len(self._data)
+        return len(self.data)
 
     def __getitem__(self, index):
+        # locate target class
+        class_id = self.data.loc[index, "target"]
+
         # will skip corrupted images
         ImageFile.LOAD_TRUNCATED_IMAGES = True
         
         # locate image
-        image_name = self._data.loc[index, "Image Name"]
+        image_name = self.data.loc[index, "Image Name"]
 
         if pd.isnull(image_name):
-            return None, None
+            return None, class_id
 
         # get the dir image is stored in
         hash_dir = self.get_hash_dir(image_name)
 
         # path to image
         image_path = join(self._image_dir, hash_dir, image_name)
-
-        # locate target class
-        class_id = self._data.loc[index, "target"]
 
         try:
             # load image
@@ -64,7 +66,7 @@ class ImageDataset(torch.utils.data.Dataset):
             assert(image.shape == torch.Size([3, 256, 256]))  # change?
             return image, class_id
         except Exception as e:
-            print("failed to load image", self._data, str(index))
+            print("failed to load image", self.data, str(index))
             print(e)
             return None
 
@@ -79,7 +81,7 @@ class ImageDataset(torch.utils.data.Dataset):
 
     @property
     def targets(self):
-        return self._data["target"]
+        return self.data["target"]
 
 
 class Transformer:
