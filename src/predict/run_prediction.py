@@ -88,6 +88,10 @@ def run_prediction(args: PredictArgs):
         confidence_scores = torch.max(probs, dim=1)[0].cpu().numpy()
 
         # add predictions to test data and track
+        # TODO: lazy hack
+        mask = test_data["Name"].notna() & test_data["Image Name"].notna()
+        test_data = test_data[mask]
+
         test_data["Pred"] = [labels[pred] for pred in preds]
         test_data["Confidence"] = confidence_scores
 

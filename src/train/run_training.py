@@ -17,16 +17,13 @@ from ..utils import set_seed, DefaultLogger, upload_checkpoint
 from ..data.utils import get_dataset
 from ..data.data import split_data, encode_target_variable, encode_target_variable_with_labels
 from ..data.taxonomy import Taxonomy
-from ..data.dataset.bert import BertDataset
-from ..data.dataset.image import ImageDataset
-from ..data.dataset.hybrid import HybridDataset
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME, RESULTS_FILE_NAME
 from .train import train
 from ..predict.predict import predict
 from ..eval.evaluate import evaluate_predictions
 from ..api.wandb import get_latest_artifact_identifier
-from ..models.utils import get_hyperparams, get_model_handler, load_model
+from ..models.utils import get_hyperparams, get_model_handler, load_model_handler
 
 
 def run_training(args: TrainArgs):
@@ -116,8 +113,8 @@ def run_training(args: TrainArgs):
         hyperparams = {hyperparam_name: args.__dict__[hyperparam_name] 
                        for hyperparam_name in hyperparam_names}
 
-        if torch.cuda.device_count() > 1:
-            handler.model = torch.nn.DataParallel(handler.model)
+        #if torch.cuda.device_count() > 1:
+        #    handler.model = torch.nn.DataParallel(handler.model)
 
         # initialize W&B run
         run_id = str(int(time()))
@@ -187,9 +184,9 @@ def run_training(args: TrainArgs):
         handler.model.to(torch.device('cpu'))
 
         # Evaluate on test set using model with best validation score
-        handler = load_model(model_dir)
-        if torch.cuda.device_count() > 1:
-            handler.model = torch.nn.DataParallel(handler.model)
+        handler = load_model_handler(model_dir)
+        #if torch.cuda.device_count() > 1:
+        #    handler.model = torch.nn.DataParallel(handler.model)
 
         # move model
         handler.model.to(args.device)

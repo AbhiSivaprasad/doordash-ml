@@ -8,6 +8,8 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing import Tuple
 
+from ..utils import move_object_to_device
+
 
 def predict(model: torch.nn.Module, 
             data_loader: DataLoader,
@@ -20,15 +22,10 @@ def predict(model: torch.nn.Module,
     with torch.no_grad():
         for input_t, _ in data_loader:
             # send all input items to gpu
-            if type(input_t) is list:
-                for i in range(len(input_t)):
-                    input_t[i] = input_t[i].to(device) 
-            else:
-                input_t = input_t.to(device)
+            input_t = move_object_to_device(input_t, device) 
 
             # generate outputs
             logits = model(input_t)
-            # logits = model(input_ids=input_t[0], attention_mask=input_t[1])[0]
 
             # compute probabilities
             if return_probs:

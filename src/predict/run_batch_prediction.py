@@ -15,7 +15,7 @@ from ..eval.evaluate import evaluate_batch_predictions, evaluate_predictions, ev
 from ..args import BatchPredictArgs
 from ..data.dataset.bert import BertDataset
 from ..data.taxonomy import Taxonomy
-from ..models.utils import load_model
+from ..models.utils import load_model_handler
 
 from transformers import DistilBertTokenizer
 
@@ -43,7 +43,7 @@ def run_batch_prediction(args: BatchPredictArgs):
     Path(category_dir).mkdir()
 
     # download and load model
-    model = load_model(join(args.model_dir, 'grocery'))
+    model = load_model_handler(join(args.model_dir, 'grocery'))
     l1_model, l1_tokenizer, l1_labels = model.model, model.tokenizer, model.labels
 
     # hack to get l1 models, write an iterator when generalizing
@@ -56,7 +56,7 @@ def run_batch_prediction(args: BatchPredictArgs):
 
         # load checkpoint
         category_dir = join(args.model_dir, node.category_id)
-        model = load_model(category_dir)
+        model = load_model_handler(category_dir)
 
         l2_models_dict[node.category_id] = model.model
         l2_labels_dict[node.category_id] = model.labels

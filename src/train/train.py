@@ -14,7 +14,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 
-from ..utils import DefaultLogger, set_seed
+from ..utils import DefaultLogger, set_seed, move_object_to_device
 from ..eval.evaluate import evaluate_predictions
 from ..args import TrainArgs
 from ..constants import MODEL_FILE_NAME
@@ -104,11 +104,7 @@ def train_epoch(model: torch.nn.Module,
         input_t, targets = data
 
         # send all input items to gpu
-        if type(input_t) is list:
-            for i in range(len(input_t)):
-                input_t[i] = input_t[i].to(device) 
-        else:
-            input_t = input_t.to(device)
+        input_t = move_object_to_device(input_t, device)
 
         # targets to gpu
         targets = targets.to(device)

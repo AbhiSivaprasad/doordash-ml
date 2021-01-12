@@ -31,5 +31,14 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
+def move_object_to_device(input_t, device):
+    if type(input_t) is list:
+        for i in range(len(input_t)):
+            input_t[i] = move_object_to_device(input_t[i], device)
+        return input_t
+    else:
+        return input_t.to(device)
+
+
 class DefaultLogger():
     debug = info = print

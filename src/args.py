@@ -151,12 +151,14 @@ class TrainArgs(CommonArgs):
 class CommonPredictArgs(CommonArgs):
     max_seq_length: int = 100
     """Max sequence length for BERT models. Longer inputs are truncated"""
-    batch_size: int = 32
+    predict_batch_size: int = 32
     """Batch size during model prediction"""
     image_dir: str = None
     """Path to directory with images if using image model"""
     image_size: int = 256
     """Size of image inputs"""
+    model_type: Literal["huggingface", "resnet", "hybrid"] = "huggingface"
+    """Type of model to train"""
     model_dir: str
     """Path to directory with models. Contains subdirectories named after category id with one model each"""
     taxonomy: str = None
