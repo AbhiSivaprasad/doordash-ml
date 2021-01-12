@@ -1,0 +1,11 @@
+- name: grocery-realtime
+  kind: RealtimeAPI 
+  predictor:
+    type: python
+    path: predictor.py
+    config:
+      model_bucket: glisten-models
+      model_bucket_folder: grocery
+      gpu: True 
+  compute:
+    gpu: 1
