@@ -135,7 +135,7 @@ def run_training(args: TrainArgs):
             "finetune": finetune,
             "train_datasets": sorted(train_data_sources),  # sort so easily queryable
             "test_datasets": sorted(test_data_sources),  # sort so easily queryable
-            "separate_test_set": args.test_dir is not None  # False if test set is created by splitting train set
+            "separate_test_set": args.test_dir is not None,  # False if test set is created by splitting train set
         }
 
         # add model specific hyperparameters to config
@@ -145,6 +145,7 @@ def run_training(args: TrainArgs):
                          name=run_id,
                          job_type="training", 
                          config=wandb_config, 
+                         notes=args.notes,
                          reinit=True)
 
         # mark data sources as input to run

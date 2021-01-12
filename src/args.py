@@ -81,6 +81,8 @@ class TrainArgs(CommonArgs):
     # W & B args
     taxonomy_artifact_identifier: str = None
     """W&B identifier of taxonomy artifact if 'all' category ids is selected"""
+    notes: str = None
+    """Notes string to associate with W&B run"""
 
     # Model args
     model_name: str
