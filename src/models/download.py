@@ -77,7 +77,7 @@ def download(args: DownloadArgs):
         category_id_to_model_version[category_id] = model_artifact.name
 
     # store model versions
-    with open(join(args.write_dir, 'versions.txt'), 'w') as f:
+    with open(join(args.write_dir, 'versions.json'), 'w') as f:
         json.dump(category_id_to_model_version, f)
 
 

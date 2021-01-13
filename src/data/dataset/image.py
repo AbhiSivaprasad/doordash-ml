@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 
 from PIL import Image, ImageOps, ImageFile
 from os.path import join
+from ..image_utils import get_image_hashdir
    
 
 class ImageDataset(torch.utils.data.Dataset):
@@ -17,6 +18,7 @@ class ImageDataset(torch.utils.data.Dataset):
                  val: bool = False,
                  preserve_na: bool = False):
         self._image_dir = image_dir
+        self._image_size = image_size
 
         # remove rows without images
         if not preserve_na:
@@ -26,9 +28,8 @@ class ImageDataset(torch.utils.data.Dataset):
             self.data = data
 
         # image transform
-        self.transform = (Transformer(image_size).val_transform 
-                          if val 
-                          else Transformer(image_size).train_transform)
+        self._val = val
+        self.transform = self.get_transform(self.val)
 
     def __len__(self):
         return len(self.data)
@@ -47,7 +48,7 @@ class ImageDataset(torch.utils.data.Dataset):
             return None, class_id
 
         # get the dir image is stored in
-        hash_dir = self.get_hash_dir(image_name)
+        hash_dir = get_image_hashdir(image_name)
 
         # path to image
         image_path = join(self._image_dir, hash_dir, image_name)
@@ -70,18 +71,25 @@ class ImageDataset(torch.utils.data.Dataset):
             print(e)
             return None
 
-    def get_hash_dir(self, image_name: str):
-        stripped_image_name = ".".join(image_name.split(".")[:-1])
-
-        # if the stripped name is "" then extension not found
-        assert stripped_image_name != ""
-
-        # first two chars of hash
-        return hashlib.sha1(stripped_image_name.encode('utf-8')).hexdigest()[:2]
+    def get_transform(self, val: bool):
+        return (Transformer(self._image_size).val_transform 
+                if val 
+                else Transformer(self._image_size).train_transform)
 
     @property
     def targets(self):
         return self.data["target"]
+
+    @property
+    def val(self):
+        return self._val
+
+    @val.setter
+    def val(self, value):
+        self._val = value
+
+        # reset transform
+        self.transform = self.get_transform(self.val)
 
 
 class Transformer:

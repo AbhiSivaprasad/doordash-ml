@@ -17,6 +17,7 @@ class TaxonomyNode:
     A group node is associated with several models. The node itself will not be associated
     with a model but each of its children will be instead.
         e.g. node: 'Dress', children: 'Dress Length', 'Dress Formality'
+             intuitively, we want to know two things about the dress so we need two models
         Each child will have a model associated with it e.g. model for dress length
     """
     def __init__(self, 

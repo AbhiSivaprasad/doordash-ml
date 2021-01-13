@@ -6,13 +6,14 @@ from .image import ImageDataset
 
 
 class HybridDataset(Dataset):
-    def __init__(self, image_dataset: ImageDataset, text_dataset: BertDataset):
+    def __init__(self, image_dataset: ImageDataset, text_dataset: BertDataset, val: bool = False):
         """
         :param data: Pandas Dataframe containing Dataset. 
                      Column "target" contains int target class. Column "name" contains str item name
         """
         self.image_dataset = image_dataset
         self.text_dataset = text_dataset
+        self._val = val
 
         mask = text_dataset.data["Name"].notna() & image_dataset.data["Image Name"].notna()
 
@@ -39,4 +40,13 @@ class HybridDataset(Dataset):
 
     def __len__(self):
         return len(self.image_dataset)
+    
+    @property
+    def val(self):
+        return self._val
+
+    @val.setter
+    def val(self, value):
+        self.image_dataset.val = value
+        self._val = value
 

@@ -95,8 +95,22 @@ class HybridHandler:
         )
         hybrid_output_head.load_state_dict(hybrid_output_head_state['model'])
 
-        # TODO: load properly
-        vision_output_head = text_output_head = None
+        # load vision output head
+        vision_output_head_state = state['vision_output_head']
+        vision_output_head = nn.Linear(vision_output_head_state['vision_embedding_dim'], num_classes)
+        vision_output_head.load_state_dict(vision_output_head_state['model'])
+
+        # load text output head
+        text_output_head_state = state['text_output_head']
+        text_output_head = nn.Sequential(
+            nn.Linear(text_output_head_state['text_embedding_dim'], text_output_head_state['hidden_dim']),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            # TODO: replace!
+            # nn.Dropout(text_output_head_state['dropout']),
+            nn.Linear(text_output_head_state['hidden_dim'], num_classes)
+        )
+        text_output_head.load_state_dict(text_output_head_state['model'])
 
         # load text model
         text_model = AutoModelForSequenceClassification.from_pretrained(dir_path) 
@@ -203,6 +217,7 @@ class HybridHandler:
 
         text_output_head_state = {
             'model': self.text_output_head.state_dict(),
+            'dropout': self.text_output_head[2].p,
             'hidden_dim': self.text_output_head[0].out_features,
             'text_embedding_dim': self.text_output_head[0].in_features,
         }
