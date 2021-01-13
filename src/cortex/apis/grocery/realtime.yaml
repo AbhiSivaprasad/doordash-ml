@@ -6,6 +6,6 @@
     config:
       model_bucket: glisten-models
       model_bucket_folder: grocery
-      gpu: True 
+      taxonomy_wandb_identifier: taxonomy-doordash:latest
   compute:
     gpu: 1
