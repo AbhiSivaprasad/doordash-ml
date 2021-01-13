@@ -1,3 +1,4 @@
+import sys
 from os import makedirs
 from os.path import join
 from src.data.taxonomy import Taxonomy
@@ -19,6 +20,11 @@ def preprocess():
     # read dataset and remapping
     remapping = pd.read_csv(join(data_dir, "category_remapping.csv"))
     df = pd.read_csv(join(data_dir, "data.csv"))
+
+    # read taxonomy
+    wandb_api = wandb.Api({"project": "main"})
+    wandb_api.artifact("taxonomy-doordash:latest").download(data_dir)
+    taxonomy = Taxonomy().from_csv(join(data_dir, "taxonomy.csv"))
 
     # remove duplicates
     df = df[~df.duplicated(subset=["id"])]
@@ -45,6 +51,26 @@ def preprocess():
     category_mapping = {}
     for i, row in remapping.iterrows():
         category_mapping[row["category"]] = (row["L1"], row["L2"])
+
+    # validate mapping
+    passed_val = True
+    for l1, l2 in category_mapping.values():
+        # warning will fail if two nodes have same name
+        l1_node = [node for node, _ in taxonomy.iter() if node.category_name == l1]
+        l2_node = [node for node, _ in taxonomy.iter() if node.category_name == l2]
+
+        assert len(l1_node) == 1
+        assert len(l2_node) == 1
+
+        l1_node = l1_node[0]
+        l2_node = l2_node[0]
+
+        if not taxonomy.has_path(['grocery', l1_node.category_id, l2_node.category_id]):
+            print(f"BAD PATH: ({l1_node.category_id}, {l2_node.category_id})")
+            passed_val = False
+
+    if not passed_val:
+        sys.exit(1)
 
     # add native categorization to data
     df["L1"] = df["category"].apply(lambda x: category_mapping.get(x, (np.nan, np.nan))[0])
@@ -76,7 +102,6 @@ def preprocess():
     df_test.reset_index(drop=True, inplace=True)
 
     # split dataset per category
-    taxonomy = Taxonomy.from_csv('taxonomy.csv')
     train_datasets = split_dataset(df_train, taxonomy)
     test_datasets = split_dataset(df_test, taxonomy)
     assert len(train_datasets) == len(test_datasets)

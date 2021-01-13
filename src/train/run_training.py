@@ -81,11 +81,11 @@ def run_training(args: TrainArgs):
     # the versions of these models are stored, load them
     text_model_versions = vision_model_versions = None
     if args.vision_model_dir is not None:
-        with open(join(args.vision_model_dir, 'versions.txt'), 'r') as f:
+        with open(join(args.vision_model_dir, 'versions.json'), 'r') as f:
             vision_model_versions = json.load(f)
 
     if args.text_model_dir is not None:
-        with open(join(args.text_model_dir, 'versions.txt'), 'r') as f:
+        with open(join(args.text_model_dir, 'versions.json'), 'r') as f:
             text_model_versions = json.load(f)
 
     # For each dataset, create dataloaders and run training

@@ -37,7 +37,7 @@ def run_prediction(args: PredictArgs):
                                      for dataset in args.eval_datasets]
 
     # load model versions
-    with open(join(args.model_dir, 'versions.txt'), 'r') as f:
+    with open(join(args.model_dir, 'versions.json'), 'r') as f:
         model_versions = json.load(f)
 
     # important to sort lists so its easily queryable
@@ -62,16 +62,16 @@ def run_prediction(args: PredictArgs):
         # mark model version as input to run
         run.use_artifact(model_versions[category_id])
 
-        # download and read model
+        # encode a target variable with the given labels
         model_dir = join(args.model_dir, category_id)
+        with open(join(model_dir, "labels.json")) as f:
+            labels = json.load(f)
+        
+        # download and read model
         handler = load_model_handler(model_dir)
 
         # download and read test data
         test_data = pd.read_csv(join(args.data_dir, category_id, "test.csv"), index_col=0)
-
-        # encode a target variable with the given labels
-        with open(join(model_dir, "labels.json")) as f:
-            labels = json.load(f)
 
         encode_target_variable_with_labels(test_data, labels)
 
