@@ -10,11 +10,10 @@ from .predict import predict
 from ..data.taxonomy import TaxonomyNode, Taxonomy
 
 
-def batch_predict(l1_model: nn.Module,
-                  l1_labels: List[str],
-                  l2_models_dict: Dict[int, nn.Module], 
+def batch_predict(l1_handler: nn.Module,
+                  l2_handler_dict: Dict[int, nn.Module], 
                   data_loader: DataLoader,
-                  device: torch.device, 
+                  device: torch.device,
                   strategy: str = 'greedy', 
                   return_probs: bool = False,
                   **kwargs):
@@ -22,7 +21,7 @@ def batch_predict(l1_model: nn.Module,
     if strategy == 'greedy':
         return batch_predict_greedy(l1_model, l2_models_dict, data_loader, device)
     elif strategy == 'complete':
-        return batch_predict_complete_search(l1_model, l1_labels, l2_models_dict, data_loader, device)
+        return batch_predict_complete_search(l1_handler, l2_handler_dict, data_loader, device)
     else:
         raise ValueError("Invalid batch prediction strategy supplied:", strategy)
 
@@ -87,9 +86,8 @@ def batch_predict_greedy(l1_model: nn.Module,
     return topk_classes, l1_topk_confidences, topk_confidences
 
 
-def batch_predict_complete_search(l1_model: nn.Module,
-                                  l1_labels: List[str],
-                                  l2_models_dict: Dict[int, nn.Module], 
+def batch_predict_complete_search(l1_handler: nn.Module,
+                                  l2_handlers_dict: Dict[int, nn.Module], 
                                   data_loader: DataLoader,
                                   device: torch.device,
                                   topk: int = 3) -> List[Tuple[int]]:
@@ -97,25 +95,25 @@ def batch_predict_complete_search(l1_model: nn.Module,
 
     :param l2_models_dict: key = int L1 class id, value = corresponding L2 model
     """
-    l1_model.to(device)
-    _, l1_probs = predict(l1_model, data_loader, device, return_probs=True)
+    l1_handler.model.to(device)
+    _, l1_probs = predict(l1_handler.model, data_loader, device, return_probs=True)
 
     # get max number of l2 categories
-    max_l2_categories = max([model.config.num_labels for model in l2_models_dict.values()])
+    max_l2_categories = max([handler.num_classes for handler in l2_handlers_dict.values()])
 
     # create ndarray to save l2 model probs
     l2_probs = np.zeros((l1_probs.shape[0], l1_probs.shape[1], max_l2_categories))
     
-    for category_id, model in tqdm(l2_models_dict.items()):
-        model.to(device)
-        l1_class_id = l1_labels.index(category_id)
-        _, l2_class_probs = predict(model, data_loader, device, return_probs=True)
+    for category_id, handler in tqdm(l2_handlers_dict.items()):
+        handler.model.to(device)
+        l1_class_id = l1_handler.labels.index(category_id)
+        _, l2_class_probs = predict(handler.model, data_loader, device, return_probs=True)
 
         # place computed probs in a slice of dims 0, 2
         l2_probs[:, l1_class_id, :l2_class_probs.shape[1]] = l2_class_probs.cpu().numpy()
 
         # move back to cpu to keep gpu memory low
-        model.to(torch.device('cpu'))
+        handler.model.to(torch.device('cpu'))
 
     # multiply every L2 probability with its corresponding L1 probability
     agg_probs = l1_probs[:, :, np.newaxis].cpu().numpy() * l2_probs

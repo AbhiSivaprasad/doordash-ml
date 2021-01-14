@@ -76,8 +76,10 @@ def download_images_from_urls(urls: List[str], dirpath: str, filenames: List[str
     return bad_urls
 
 
-def download_image(url: str, filepath: str, tries: int = 1):
+def download_image(url: str, filepath: str, tries: int = 3):
     """Download image from url to filepath"""
+    print(f"Downloading from {url}")
+
     # already doing python multiprocessing, so prob better to not double up
     cv2.setNumThreads(0)
 
@@ -103,6 +105,7 @@ def download_image(url: str, filepath: str, tries: int = 1):
     img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
     
     # write image
+    print(f"Writing image to {filepath}")
     if not cv2.imwrite(filepath, img):
         return Exception("could not write image")
 
@@ -114,6 +117,8 @@ def download_image(url: str, filepath: str, tries: int = 1):
             return download_image(url, filepath, tries - 1)
         else:
             raise ValueError('File is empty', filepath)
+    else:
+        print(f"{filepath} exists")
 
 
 def istarmap(self, func, iterable, chunksize=1):

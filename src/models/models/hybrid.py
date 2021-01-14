@@ -36,7 +36,10 @@ class HybridModel(nn.Module):
 
     def forward(self, x):
         text, image = x
-        has_text, has_image = text is not None, image is not None
+
+        # hacky fix with new collate
+        has_text = not (torch.is_tensor(text) and len(text.shape) == 1 and text[0].item() == -1)
+        has_image = not (torch.is_tensor(image) and len(image.shape) == 1 and image[0].item() == -1)
         vision_embedding = text_embedding = None
 
         # pure text model

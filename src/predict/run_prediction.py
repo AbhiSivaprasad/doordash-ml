@@ -76,7 +76,7 @@ def run_prediction(args: PredictArgs):
         encode_target_variable_with_labels(test_data, labels)
 
         # assumes same tokenizer used on all models
-        test_dataset = get_dataset(test_data, args, handler)
+        test_dataset = get_dataset(test_data, args, handler, val=True)
         test_dataloader = DataLoader(test_dataset, batch_size=args.predict_batch_size)
 
         # get predictions and prediction probabilities
