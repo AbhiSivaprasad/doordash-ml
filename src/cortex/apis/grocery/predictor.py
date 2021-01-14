@@ -1,6 +1,10 @@
+import os
+import torch
+import json
 import cv2
 import wandb
 import boto3
+import pandas as pd
 
 from src.cortex.apis.utils import download_directory_from_s3
 from src.models.handlers.hybrid import HybridHandler
@@ -10,8 +14,11 @@ from src.data.dataset.image import ImageDataset
 from src.data.dataset.hybrid import HybridDataset
 from src.data.image_utils import get_image_hashdir
 from src.data.taxonomy import Taxonomy
+from src.preprocess.image_utils import download_image
+from src.preprocess.utils import hash_string
 
-from os.path import join
+from pathlib import Path
+from os.path import join, dirname
 from torch.utils.data import DataLoader
 
 
@@ -32,10 +39,6 @@ class PythonPredictor:
         model_bucket = s3_resource.Bucket(config["model_bucket"])
         download_directory_from_s3(model_bucket, config["model_bucket_folder"], self.model_dir)
 
-        # model versions
-        with open(join(self.model_dir, "versions.json"), "r") as f:
-            versions = json.load(f)
-
         # device setup
         self.device = (torch.device("cuda") 
                        if torch.cuda.is_available() 
@@ -44,11 +47,10 @@ class PythonPredictor:
         # setup L1, L2 models
         l1_handler = HybridHandler.load(join(self.model_dir, 'grocery'))
 
-        self.l1_model, self.l1_labels, self.tokenizer \
-            = l1_handler.model, l1_handler.labels, l1_handler.tokenizer
+        self.l1_handler, self.tokenizer \
+            = l1_handler, l1_handler.tokenizer
 
-        self.l2_models_dict = {}  # key = class id, value = model
-        self.l2_labels_dict = {}  # key = class id, value = labels
+        self.l2_handler_dict = {}  # key = class id, value = model
 
         for node, path in taxonomy.iter(skip_leaves=True):
             # skip l1
@@ -57,10 +59,7 @@ class PythonPredictor:
 
             # load checkpoint
             category_dir = join(self.model_dir, node.category_id)
-            handler = HybridHandler.load(category_dir)
-
-            l2_models_dict[node.category_id] = handler.model
-            l2_labels_dict[node.category_id] = handler.labels
+            self.l2_handler_dict[node.category_id] = HybridHandler.load(category_dir)
 
         # args
         self.max_seq_length = 100
@@ -70,18 +69,15 @@ class PythonPredictor:
     def predict(self, payload, query_params, headers):
         print(payload)
 
-        return ["dummy"]
-        # image = 
-        text = self.process_payload(payload)
+        data = self.process_payload(payload)
 
         text_dataset = BertDataset(data, self.tokenizer, self.max_seq_length, preserve_na=True)
         image_dataset = ImageDataset(data, self.image_dir, self.image_size, preserve_na=True, val=True)
-        dataset = HybridDataset(image_dataset, text_dataset, val=True)
+        dataset = HybridDataset(image_dataset, text_dataset, val=True, preserve_na=True)
         dataloader = DataLoader(dataset, batch_size=self.batch_size)
 
-        preds, l2_confidence_scores = batch_predict(self.l1_model, 
-                                                    self.l1_labels, 
-                                                    self.l2_models_dict, 
+        preds, l2_confidence_scores = batch_predict(self.l1_handler, 
+                                                    self.l2_handler_dict, 
                                                     dataloader, 
                                                     self.device, 
                                                     strategy="complete")
@@ -95,11 +91,11 @@ class PythonPredictor:
 
         # process predictions 
         def get_labels(l1_class_id, l2_class_id):
-            l1_category = self.l1_labels[l1_class_id]
-            l2_category = self.l2_labels_dict[l1_category][l2_class_id]
+            l1_category = self.l1_handler.labels[l1_class_id]
+            l2_category = self.l2_handler_dict[l1_category].labels[l2_class_id]
             return l1_category, l2_category
 
-        preds = [[get_labels(l1_pred, l2_pred) for l1_pred, l2_pred in topk] for topk in preds]
+        preds = [get_labels(l1_pred, l2_pred) for l1_pred, l2_pred in preds]
         
         # build and return prediction results payload
         return [
@@ -111,32 +107,37 @@ class PythonPredictor:
         ]
 
     def process_payload(self, payload):
-        item_name = image = None
+        item_name = image_url = image_name = None
         if 'item_name' in payload:
             item_name = payload['item_name']
-        elif 'image' in payload:
-            image = payload['image']
 
-        image_name = hash(image)
-        data = [item_name, image_name]
+        if 'image_url' in payload:
+            image_url = payload['image_url']
 
-        # creating appropriate hash directory in image dir and compute image path
-        hash_dir = get_image_hashdir(image_name) 
-        image_path = join(self.image_dir, hash_dir, image_name)
+            # save file with extension
+            file_extension = image_url.split(".")[-1]
+            image_name = f"{hash_string(image_url)}.{file_extension}"
+            hash_dir = get_image_hashdir(image_name)
 
-        # write image
-        if not cv2.imwrite(filepath, img):
-            print("could not write image")
+            # make hash dir and download image
+            Path(join(self.image_dir, hash_dir)).mkdir(parents=True, exist_ok=True)
+            filepath = join(self.image_dir, hash_dir, image_name) 
+            download_image(image_url, filepath)
 
-        df = pd.DataFrame(data, columns=["Name", "Image Name"])
+        return pd.DataFrame([[item_name, image_name]], columns=["Name", "Image Name"])
 
-        return item_name, image
 
-    def process_image():
-        # process image
-        image = np.asarray(bytearray(resp.read()), dtype="uint8")
-        img = cv2.imdecode(image, cv2.IMREAD_COLOR)
-        height, width = img.shape[:2]
-        scaling_factor = 1024.0 / max(height, width)
-        img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
-     
+if __name__ == '__main__':
+    config = {
+        "model_bucket": "glisten-models",
+        "model_bucket_folder": "grocery",
+        "taxonomy_wandb_identifier": "taxonomy-doordash:latest"
+    }
+
+    payload = {
+        # "item_name": "Oranges",
+        "image_url": "https://images-na.ssl-images-amazon.com/images/I/71DYyumRSQL._SL1500_.jpg"
+    }
+
+    p = PythonPredictor(config)
+    p.predict(payload, None, None)
