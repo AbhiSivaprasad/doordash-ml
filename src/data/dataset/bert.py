@@ -39,9 +39,9 @@ class BertDataset(Dataset):
         
         item = [torch.tensor(ids, dtype=torch.long), torch.tensor(mask, dtype=torch.long)]
 
-        targets = (torch.tensor(self.data.target[index], dtype=torch.long) 
-                   if "target" in self.data.columns 
-                   else -1)
+        targets = (torch.tensor(self.targets[index], dtype=torch.long) 
+                   if self.targets is not None
+                   else None)
         
         return item, targets
 
@@ -50,4 +50,4 @@ class BertDataset(Dataset):
 
     @property
     def targets(self):
-        return self.data["target"]
+        return self.data["target"] if "target" in self.data else None

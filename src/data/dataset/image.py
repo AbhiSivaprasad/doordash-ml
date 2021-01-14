@@ -29,14 +29,17 @@ class ImageDataset(torch.utils.data.Dataset):
 
         # image transform
         self._val = val
-        self.transform = self.get_transform(self.val)
+        # define transform
+        transformer = Transformer(image_size)
+        self.transform = transformer.val_transform if self.val else transformer.train_transform
+
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
         # locate target class
-        class_id = self.data.loc[index, "target"]
+        class_id = self.targets[index] if self.targets is not None else None
 
         # will skip corrupted images
         ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -54,31 +57,30 @@ class ImageDataset(torch.utils.data.Dataset):
         image_path = join(self._image_dir, hash_dir, image_name)
 
         try:
-            # load image
-            image = Image.open(image_path).convert('RGBA')
-
-            # create background and paste image
-            background = Image.new("RGB", image.size, (255, 255, 255))
-            background.paste(image, mask=image.split()[3]) # 3 is the alpha channel
-            image = background
-
-            # transform image
-            image = self.transform(image)
-            assert(image.shape == torch.Size([3, 256, 256]))  # change?
+            image = self.prepare_image(image_path, self._image_size)
             return image, class_id
         except Exception as e:
             print("failed to load image", self.data, str(index))
             print(e)
-            return None
+            return None, None
 
-    def get_transform(self, val: bool):
-        return (Transformer(self._image_size).val_transform 
-                if val 
-                else Transformer(self._image_size).train_transform)
+    def prepare_image(self, image_path: str, image_size: int):
+        # load image
+        image = Image.open(image_path).convert('RGBA')
+
+        # create background and paste image
+        background = Image.new("RGB", image.size, (255, 255, 255))
+        background.paste(image, mask=image.split()[3]) # 3 is the alpha channel
+        image = background
+
+        # transform image
+        image = self.transform(image)
+        assert(image.shape == torch.Size([3, 256, 256]))  # change?
+        return image
 
     @property
     def targets(self):
-        return self.data["target"]
+        return self.data["target"] if "target" in self.data else None
 
     @property
     def val(self):
@@ -87,10 +89,6 @@ class ImageDataset(torch.utils.data.Dataset):
     @val.setter
     def val(self, value):
         self._val = value
-
-        # reset transform
-        self.transform = self.get_transform(self.val)
-
 
 class Transformer:
     def __init__(self, image_size, pad=False):

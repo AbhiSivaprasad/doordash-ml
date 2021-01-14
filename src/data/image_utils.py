@@ -1,4 +1,5 @@
 import hashlib
+from PIL import Image, ImageOps, ImageFile
 
 
 def get_image_hashdir(image_name: str):
@@ -9,3 +10,4 @@ def get_image_hashdir(image_name: str):
 
     # first two chars of hash
     return hashlib.sha1(stripped_image_name.encode('utf-8')).hexdigest()[:2]
+

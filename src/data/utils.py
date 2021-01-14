@@ -9,16 +9,16 @@ from .dataset.image import ImageDataset
 from .dataset.hybrid import HybridDataset
 
 
-def get_dataset(data: pd.DataFrame, args: TrainArgs, handler = None):
+def get_dataset(data: pd.DataFrame, args: TrainArgs, handler = None, val: bool = False):
     if args.model_type == HuggingfaceHandler.MODEL_TYPE:
         assert handler is not None
         assert handler.tokenizer is not None
         return BertDataset(data, handler.tokenizer, args.max_seq_length)
     elif args.model_type == ResnetHandler.MODEL_TYPE:
-        return ImageDataset(data, args.image_dir, args.image_size)
+        return ImageDataset(data, args.image_dir, args.image_size, val=val)
     elif args.model_type == HybridHandler.MODEL_TYPE:
         assert handler is not None
         assert handler.tokenizer is not None
         text_dataset = BertDataset(data, handler.tokenizer, args.max_seq_length, preserve_na=True)
-        image_dataset = ImageDataset(data, args.image_dir, args.image_size, preserve_na=True)
-        return HybridDataset(image_dataset, text_dataset)
+        image_dataset = ImageDataset(data, args.image_dir, args.image_size, preserve_na=True, val=val)
+        return HybridDataset(image_dataset, text_dataset, val=val)
