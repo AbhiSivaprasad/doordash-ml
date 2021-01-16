@@ -25,9 +25,9 @@ from torch.utils.data import DataLoader
 class PythonPredictor:
     def __init__(self, config, python_client=None):
         # constants
-        self.model_dir = "model/"
-        self.download_dir = "download/"
-        self.image_dir = "images/"
+        self.model_dir = "tmp/model/"
+        self.download_dir = "tmp/download/"
+        self.image_dir = "tmp/images/"
 
         # fetch taxonomy from wandb
         wandb_api = wandb.Api({"project": "main"})
@@ -35,9 +35,9 @@ class PythonPredictor:
         taxonomy = Taxonomy().from_csv(join(self.download_dir, "taxonomy.csv"))
 
         # fetch models from s3
-        s3_resource = boto3.resource("s3")
-        model_bucket = s3_resource.Bucket(config["model_bucket"])
-        download_directory_from_s3(model_bucket, config["model_bucket_folder"], self.model_dir)
+        # s3_resource = boto3.resource("s3")
+        # model_bucket = s3_resource.Bucket(config["model_bucket"])
+        # download_directory_from_s3(model_bucket, config["model_bucket_folder"], self.model_dir)
 
         # device setup
         self.device = (torch.device("cuda") 
@@ -108,10 +108,10 @@ class PythonPredictor:
 
     def process_payload(self, payload):
         item_name = image_url = image_name = None
-        if 'item_name' in payload:
-            item_name = payload['item_name']
+        if 'item_name' in payload and payload['item_name'] != "":
+            item_name = payload['item_name'].lower()
 
-        if 'image_url' in payload:
+        if 'image_url' in payload and payload['image_url'] != "":
             image_url = payload['image_url']
 
             # save file with extension
@@ -135,9 +135,9 @@ if __name__ == '__main__':
     }
 
     payload = {
-        # "item_name": "Oranges",
-        "image_url": "https://images-na.ssl-images-amazon.com/images/I/71DYyumRSQL._SL1500_.jpg"
+        "item_name": "Gatorade G Zero Thirst Quencher Glacier Cherry 8ct",
+        # "image_url": "https://e22d0640933e3c7f8c86-34aee0c49088be50e3ac6555f6c963fb.ssl.cf2.rackcdn.com/0052000043190_CL_default_default_thumb.jpeg"
     }
 
     p = PythonPredictor(config)
-    p.predict(payload, None, None)
+    print(p.predict(payload, None, None))

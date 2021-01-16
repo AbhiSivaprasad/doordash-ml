@@ -64,6 +64,10 @@ class HybridDataset(Dataset):
         return len(self.image_dataset)
     
     @property
+    def data(self):
+        return self.text_dataset.data
+
+    @property
     def val(self):
         return self._val
 

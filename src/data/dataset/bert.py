@@ -41,7 +41,7 @@ class BertDataset(Dataset):
 
         targets = (torch.tensor(self.targets[index], dtype=torch.long) 
                    if self.targets is not None
-                   else None)
+                   else -1)
         
         return item, targets
 
