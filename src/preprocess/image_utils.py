@@ -100,6 +100,16 @@ def download_image(url: str, filepath: str, tries: int = 3):
     # process image
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
     img = cv2.imdecode(image, cv2.IMREAD_COLOR)
+
+    if img is None:
+        # try again
+        if tries > 0:
+            print(f"Retrying: {url}")
+            return download_image(url, filepath, tries - 1)
+        else:
+            print(f"Failed Request: {url}")
+            return url
+
     height, width = img.shape[:2]
     scaling_factor = 1024.0 / max(height, width)
     img = cv2.resize(img, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)

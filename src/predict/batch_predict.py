@@ -106,9 +106,11 @@ def batch_predict_complete_search(l1_handler: nn.Module,
     
     for category_id, handler in tqdm(l2_handlers_dict.items()):
         handler.model.to(device)
+        print(category_id)
+
         l1_class_id = l1_handler.labels.index(category_id)
         _, l2_class_probs = predict(handler.model, data_loader, device, return_probs=True)
-
+        
         # place computed probs in a slice of dims 0, 2
         l2_probs[:, l1_class_id, :l2_class_probs.shape[1]] = l2_class_probs.cpu().numpy()
 

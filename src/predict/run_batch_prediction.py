@@ -16,6 +16,7 @@ from ..args import BatchPredictArgs
 from ..data.dataset.bert import BertDataset
 from ..data.taxonomy import Taxonomy
 from ..models.utils import load_model_handler
+from ..data.utils import get_dataset
 
 from transformers import DistilBertTokenizer
 
@@ -43,12 +44,10 @@ def run_batch_prediction(args: BatchPredictArgs):
     Path(category_dir).mkdir()
 
     # download and load model
-    model = load_model_handler(join(args.model_dir, 'grocery'))
-    l1_model, l1_tokenizer, l1_labels = model.model, model.tokenizer, model.labels
+    l1_handler = load_model_handler(join(args.model_dir, 'grocery'))
 
     # hack to get l1 models, write an iterator when generalizing
-    l2_models_dict = {}  # key = class id, value = model
-    l2_labels_dict = {}  # key = class id, value = labels
+    l2_handler_dict = {}  # key = class id, value = model
     for node, path in taxonomy.iter(skip_leaves=True):
         # skip l1
         if len(path) == 1:
@@ -56,22 +55,19 @@ def run_batch_prediction(args: BatchPredictArgs):
 
         # load checkpoint
         category_dir = join(args.model_dir, node.category_id)
-        model = load_model_handler(category_dir)
-
-        l2_models_dict[node.category_id] = model.model
-        l2_labels_dict[node.category_id] = model.labels
+        l2_handler_dict[node.category_id] = load_model_handler(category_dir)
 
     # assumes same tokenizer used on all models
-    test_data = BertDataset(test_data, l1_tokenizer, args.max_seq_length)
-    test_dataloader = DataLoader(test_data, batch_size=args.batch_size)
+    test_data = get_dataset(test_data, args, l1_handler, val=True)
+    test_dataloader = DataLoader(test_data, batch_size=args.predict_batch_size)
 
     # compute predictions and targets
     preds, l2_confidence_scores = batch_predict(
-        l1_model, l1_labels, l2_models_dict, test_dataloader, args.device, strategy=args.strategy)
+        l1_handler, l2_handler_dict, test_dataloader, args.device, strategy=args.strategy)
 
     def get_labels(l1_class_id, l2_class_id):
-        l1_category = l1_labels[l1_class_id]
-        l2_category = l2_labels_dict[l1_category][l2_class_id]
+        l1_category = l1_handler.labels[l1_class_id]
+        l2_category = l2_handler_dict[l1_category].labels[l2_class_id]
         return l1_category, l2_category
 
     preds = [[get_labels(l1_pred, l2_pred) for l1_pred, l2_pred in topk] for topk in preds]

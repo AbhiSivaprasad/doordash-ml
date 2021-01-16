@@ -23,6 +23,7 @@ class HuggingfaceHandler:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.labels = labels
+        self.num_classes = model.config.num_labels
 
         # rewire model's forward to standardize it
         self.model.forward_save = self.model.forward

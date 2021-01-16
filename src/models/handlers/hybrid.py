@@ -105,7 +105,7 @@ class HybridHandler:
         text_output_head = nn.Sequential(
             nn.Linear(text_output_head_state['text_embedding_dim'], text_output_head_state['hidden_dim']),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             # TODO: replace!
             # nn.Dropout(text_output_head_state['dropout']),
             nn.Linear(text_output_head_state['hidden_dim'], num_classes)
