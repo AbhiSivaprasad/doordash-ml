@@ -1,5 +1,6 @@
 region: us-west-2
-instance_type: g4dn.xlarge
+instance_type: g4dn.2xlarge
 min_instances: 1
 max_instances: 3
 spot: true
+instance_volume_size: 50

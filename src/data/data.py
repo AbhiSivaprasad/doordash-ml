@@ -13,21 +13,19 @@ def encode_target_variable(data: pd.DataFrame) -> List[str]:
 
     :return: List[str]. Labels in a list where element i is the category id for class id i
     """
-    # encode category ids
-    category_id_to_class_id_mapping = OrderedDict()
-    def category_id_to_class_id(category_id: str) -> int:
-        if category_id not in category_id_to_class_id_mapping:
-            category_id_to_class_id_mapping[category_id] \
-                = len(category_id_to_class_id_mapping)
-
-        return category_id_to_class_id_mapping[category_id]
-
     # create target variable
-    data["target"] = data["Category ID"].apply(category_id_to_class_id) 
+    category_ids = list(set(data["Category ID"))
 
-    # class ids were added in order to mapping dict
-    labels = [category_id for category_id, _ in category_id_to_class_id_mapping.items()]
-    return labels
+    # sort categories for consistent labelling
+    category_ids.sort()
+
+    # element i is the category id for class id i
+    category_id_to_label = {category_id: i for i, category_id in enumerate(category_ids)}
+
+    # generate targets 
+    data["target"] = data["Category ID"].apply(lambda x: category_id_to_label[x]) 
+
+    return category_ids
 
 
 def encode_target_variable_with_labels(data: pd.DataFrame, labels: List[str]) -> None:

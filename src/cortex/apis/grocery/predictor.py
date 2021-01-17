@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.cortex.apis.utils import download_directory_from_s3
 from src.models.handlers.hybrid import HybridHandler
+from src.models.handlers.huggingface import HuggingfaceHandler
 from src.predict.batch_predict import batch_predict
 from src.data.dataset.bert import BertDataset
 from src.data.dataset.image import ImageDataset
@@ -25,9 +26,10 @@ from torch.utils.data import DataLoader
 class PythonPredictor:
     def __init__(self, config, python_client=None):
         # constants
-        self.model_dir = "tmp/model/"
-        self.download_dir = "tmp/download/"
-        self.image_dir = "tmp/images/"
+        self.model_dir = "model/"
+        self.text_model_dir = "text-models/"
+        self.download_dir = "download/"
+        self.image_dir = "images/"
 
         # fetch taxonomy from wandb
         wandb_api = wandb.Api({"project": "main"})
@@ -35,9 +37,13 @@ class PythonPredictor:
         taxonomy = Taxonomy().from_csv(join(self.download_dir, "taxonomy.csv"))
 
         # fetch models from s3
-        # s3_resource = boto3.resource("s3")
-        # model_bucket = s3_resource.Bucket(config["model_bucket"])
-        # download_directory_from_s3(model_bucket, config["model_bucket_folder"], self.model_dir)
+        s3_resource = boto3.resource("s3")
+        model_bucket = s3_resource.Bucket(config["model_bucket"])
+        download_directory_from_s3(model_bucket, config["model_bucket_folder"], self.model_dir)
+
+        # fetch text models from s3
+        model_bucket = s3_resource.Bucket(config["model_bucket"])
+        download_directory_from_s3(model_bucket, config["text_model_bucket_folder"], self.text_model_dir)
 
         # device setup
         self.device = (torch.device("cuda") 
@@ -61,6 +67,24 @@ class PythonPredictor:
             category_dir = join(self.model_dir, node.category_id)
             self.l2_handler_dict[node.category_id] = HybridHandler.load(category_dir)
 
+        # setup L1, L2 text models
+        l1_text_handler = HuggingfaceHandler.load(join(self.text_model_dir, 'grocery'))
+
+        self.l1_text_handler, self.text_tokenizer \
+            = l1_text_handler, l1_text_handler.tokenizer
+
+        self.l2_text_handler_dict = {}  # key = class id, value = model
+
+        for node, path in taxonomy.iter(skip_leaves=True):
+            # skip l1
+            if len(path) == 1:
+                continue
+
+            # load checkpoint
+            category_dir = join(self.text_model_dir, node.category_id)
+            self.l2_text_handler_dict[node.category_id] = HuggingfaceHandler.load(category_dir)
+
+
         # args
         self.max_seq_length = 100
         self.image_size = 256
@@ -71,16 +95,39 @@ class PythonPredictor:
 
         data = self.process_payload(payload)
 
-        text_dataset = BertDataset(data, self.tokenizer, self.max_seq_length, preserve_na=True)
-        image_dataset = ImageDataset(data, self.image_dir, self.image_size, preserve_na=True, val=True)
-        dataset = HybridDataset(image_dataset, text_dataset, val=True, preserve_na=True)
-        dataloader = DataLoader(dataset, batch_size=self.batch_size)
+        if not pd.isnull(data["Image Name"][0]):
+            text_dataset = BertDataset(data, self.tokenizer, self.max_seq_length, preserve_na=True)
+            image_dataset = ImageDataset(data, self.image_dir, self.image_size, preserve_na=True, val=True)
+            dataset = HybridDataset(image_dataset, text_dataset, val=True, preserve_na=True)
+            dataloader = DataLoader(dataset, batch_size=self.batch_size)
 
-        preds, l2_confidence_scores = batch_predict(self.l1_handler, 
-                                                    self.l2_handler_dict, 
-                                                    dataloader, 
-                                                    self.device, 
-                                                    strategy="complete")
+            preds, l2_confidence_scores = batch_predict(self.l1_handler, 
+                                                        self.l2_handler_dict, 
+                                                        dataloader, 
+                                                        self.device, 
+                                                        strategy="complete")
+
+            # process predictions 
+            def get_labels(l1_class_id, l2_class_id):
+                l1_category = self.l1_handler.labels[l1_class_id]
+                l2_category = self.l2_handler_dict[l1_category].labels[l2_class_id]
+                return l1_category, l2_category
+
+        else:
+            dataset = BertDataset(data, self.text_tokenizer, self.max_seq_length, preserve_na=True)
+            dataloader = DataLoader(dataset, batch_size=self.batch_size)
+
+            preds, l2_confidence_scores = batch_predict(self.l1_text_handler, 
+                                                        self.l2_text_handler_dict, 
+                                                        dataloader, 
+                                                        self.device, 
+                                                        strategy="complete")
+
+            # process predictions 
+            def get_labels(l1_class_id, l2_class_id):
+                l1_category = self.l1_text_handler.labels[l1_class_id]
+                l2_category = self.l2_text_handler_dict[l1_category].labels[l2_class_id]
+                return l1_category, l2_category
 
         # only one data point
         assert len(preds) == 1
@@ -88,12 +135,6 @@ class PythonPredictor:
 
         preds = preds[0]
         l2_confidence_scores = l2_confidence_scores[0]
-
-        # process predictions 
-        def get_labels(l1_class_id, l2_class_id):
-            l1_category = self.l1_handler.labels[l1_class_id]
-            l2_category = self.l2_handler_dict[l1_category].labels[l2_class_id]
-            return l1_category, l2_category
 
         preds = [get_labels(l1_pred, l2_pred) for l1_pred, l2_pred in preds]
         
@@ -130,12 +171,13 @@ class PythonPredictor:
 if __name__ == '__main__':
     config = {
         "model_bucket": "glisten-models",
-        "model_bucket_folder": "grocery",
-        "taxonomy_wandb_identifier": "taxonomy-doordash:latest"
+        "model_bucket_folder": "grocery/hybrid",
+        "taxonomy_wandb_identifier": "taxonomy-doordash:latest",
+        "text_model_bucket_folder": "grocery/text"
     }
 
     payload = {
-        "item_name": "Gatorade G Zero Thirst Quencher Glacier Cherry 8ct",
+        "item_name": "chicken",
         # "image_url": "https://e22d0640933e3c7f8c86-34aee0c49088be50e3ac6555f6c963fb.ssl.cf2.rackcdn.com/0052000043190_CL_default_default_thumb.jpeg"
     }
 

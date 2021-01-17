@@ -5,7 +5,8 @@
     path: predictor.py
     config:
       model_bucket: glisten-models
-      model_bucket_folder: grocery
+      model_bucket_folder: grocery/hybrid
+      text_model_bucket_folder: grocery/text 
       taxonomy_wandb_identifier: taxonomy-doordash:latest
   compute:
     gpu: 1
