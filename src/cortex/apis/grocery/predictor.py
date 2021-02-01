@@ -95,6 +95,12 @@ class PythonPredictor:
 
         data = self.process_payload(payload)
 
+        if pd.isnull(data["Image Name"])[0] and pd.isnull(data["Name"]):
+            # lazy hack
+            return { 
+                "message": "Enter a valid image URL" 
+            }
+
         if not pd.isnull(data["Image Name"][0]):
             text_dataset = BertDataset(data, self.tokenizer, self.max_seq_length, preserve_na=True)
             image_dataset = ImageDataset(data, self.image_dir, self.image_size, preserve_na=True, val=True)
@@ -152,18 +158,11 @@ class PythonPredictor:
         if 'item_name' in payload and payload['item_name'] != "":
             item_name = payload['item_name'].lower()
 
-        if 'image_url' in payload and payload['image_url'] != "":
+        if 'image_url' in payload and self.validate_url(payload['image_url']):
+            # validate url
             image_url = payload['image_url']
-
-            # extract extension
-            f = image_url.rsplit('/', 1)[-1]
             f_parts = image_url.split(".")
-
-            if len(f_parts) == 1:
-                # default extension
-                file_extension = "jpeg"
-            else:
-                file_extension = f_parts[-1]
+            file_extension = f_parts[-1]
 
             # save file with extension
             image_name = f"{hash_string(image_url)}.{file_extension}"
@@ -172,10 +171,26 @@ class PythonPredictor:
             # make hash dir and download image
             Path(join(self.image_dir, hash_dir)).mkdir(parents=True, exist_ok=True)
             filepath = join(self.image_dir, hash_dir, image_name) 
-            download_image(image_url, filepath)
+
+            try:
+                if download_image(image_url, filepath) is not None:
+                    # bad url
+                    image_name = None
+            except:
+                # image download failed
+                image_name = None
 
         return pd.DataFrame([[item_name, image_name]], columns=["Name", "Image Name"])
 
+    def validate_url(self, url):
+        if url == "" or '/' not in url:
+            return False
+
+        # extract extension
+        path = url.rsplit('/', 1)[-1]
+        
+        # . signifies file with extension
+        return "." in path
 
 if __name__ == '__main__':
     config = {

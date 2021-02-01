@@ -127,8 +127,9 @@ def download_image(url: str, filepath: str, tries: int = 3):
             return download_image(url, filepath, tries - 1)
         else:
             raise ValueError('File is empty', filepath)
-    else:
-        print(f"{filepath} exists")
+
+    print(f"{filepath} exists")
+    return None
 
 
 def istarmap(self, func, iterable, chunksize=1):
