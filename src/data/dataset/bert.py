@@ -18,13 +18,12 @@ class BertDataset(Dataset):
         self.max_len = max_len
         self.preserve_na = preserve_na
 
-       
     def __getitem__(self, index):
         name = self.data.Name[index]
 
         # no name provided for item
         if pd.isnull(name):
-            return None, None
+            return -1, -1
 
         inputs = self.tokenizer(
             str(name),
@@ -39,6 +38,7 @@ class BertDataset(Dataset):
         
         item = [torch.tensor(ids, dtype=torch.long), torch.tensor(mask, dtype=torch.long)]
 
+        # return -1 if no target, default collate cannot handle None
         targets = (torch.tensor(self.targets[index], dtype=torch.long) 
                    if self.targets is not None
                    else -1)

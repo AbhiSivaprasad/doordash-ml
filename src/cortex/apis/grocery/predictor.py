@@ -155,8 +155,17 @@ class PythonPredictor:
         if 'image_url' in payload and payload['image_url'] != "":
             image_url = payload['image_url']
 
+            # extract extension
+            f = image_url.rsplit('/', 1)[-1]
+            f_parts = image_url.split(".")
+
+            if len(f_parts) == 1:
+                # default extension
+                file_extension = "jpeg"
+            else:
+                file_extension = f_parts[-1]
+
             # save file with extension
-            file_extension = image_url.split(".")[-1]
             image_name = f"{hash_string(image_url)}.{file_extension}"
             hash_dir = get_image_hashdir(image_name)
 
@@ -178,7 +187,7 @@ if __name__ == '__main__':
 
     payload = {
         "item_name": "chicken",
-        # "image_url": "https://e22d0640933e3c7f8c86-34aee0c49088be50e3ac6555f6c963fb.ssl.cf2.rackcdn.com/0052000043190_CL_default_default_thumb.jpeg"
+        "image_url": "https://e22d0640933e3c7f8c86-34aee0c49088be50e3ac6555f6c963fb.ssl.cf2.rackcdn.com/0052000043190_CL_default_default_thumb.jpeg"
     }
 
     p = PythonPredictor(config)

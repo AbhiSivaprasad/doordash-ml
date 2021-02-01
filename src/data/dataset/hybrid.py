@@ -19,6 +19,7 @@ class HybridDataset(Dataset):
         self.text_dataset = text_dataset
         self._val = val
 
+        # filter out data points with neither text nor image inputs 
         if not preserve_na:
             mask = text_dataset.data["Name"].notna() & image_dataset.data["Image Name"].notna()
 
@@ -28,6 +29,7 @@ class HybridDataset(Dataset):
             self.text_dataset.data = self.text_dataset.data[mask]
             self.text_dataset.data.reset_index(drop=True, inplace=True)
 
+        # sanity checks
         assert len(self.image_dataset) == len(self.text_dataset)
         if self.image_dataset.targets is not None:
             assert self.image_dataset.targets.equals(self.text_dataset.targets)
@@ -46,17 +48,7 @@ class HybridDataset(Dataset):
         target = image_target
 
         # one input must exist
-        assert image is not None or text is not None
-            
-        # collate can't handle 'None', fix later
-        if image is None:
-            image = -1
-
-        if text is None:
-            text = -1
-
-        if target is None:
-            target = -1
+        # assert image != -1 or text != -1
 
         return (text, image), target
 

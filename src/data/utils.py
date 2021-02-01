@@ -22,3 +22,4 @@ def get_dataset(data: pd.DataFrame, args: TrainArgs, handler = None, val: bool =
         text_dataset = BertDataset(data, handler.tokenizer, args.max_seq_length, preserve_na=True)
         image_dataset = ImageDataset(data, args.image_dir, args.image_size, preserve_na=True, val=val)
         return HybridDataset(image_dataset, text_dataset, val=val)
+

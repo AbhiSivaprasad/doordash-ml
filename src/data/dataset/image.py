@@ -39,7 +39,7 @@ class ImageDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         # locate target class
-        class_id = self.targets[index] if self.targets is not None else None
+        class_id = self.targets[index] if self.targets is not None else -1
 
         # will skip corrupted images
         ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -47,8 +47,9 @@ class ImageDataset(torch.utils.data.Dataset):
         # locate image
         image_name = self.data.loc[index, "Image Name"]
 
+        # no image for data point
         if pd.isnull(image_name):
-            return None, class_id
+            return -1, class_id
 
         # get the dir image is stored in
         hash_dir = get_image_hashdir(image_name)
@@ -60,9 +61,9 @@ class ImageDataset(torch.utils.data.Dataset):
             image = self.prepare_image(image_path, self._image_size)
             return image, class_id
         except Exception as e:
-            print("failed to load image", self.data, str(index))
+            print("Failed to load image", self.data, str(index))
             print(e)
-            return None, None
+            return -1, class_id
 
     def prepare_image(self, image_path: str, image_size: int):
         # load image
