@@ -5,8 +5,20 @@
     path: src/cortex/apis/grocery/predictor.py
     config:
       model_bucket: glisten-models
-      taxonomy_wandb_identifier: taxonomy-doordash:latest
       model_bucket_folder: grocery/hybrid
       text_model_bucket_folder: grocery/text 
+      taxonomy_wandb_identifier: taxonomy-doordash:latest
+  compute:
+    gpu: 1
+- name: grocery-batch
+  kind: BatchAPI 
+  predictor:
+    type: python
+    path: src/cortex/apis/grocery/batch_predictor.py
+    config:
+      model_bucket: glisten-models
+      text_model_bucket_folder: grocery/text 
+      output_bucket: glisten-batch-results
+      taxonomy_wandb_identifier: taxonomy-doordash:latest
   compute:
     gpu: 1
