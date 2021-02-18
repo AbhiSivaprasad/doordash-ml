@@ -95,7 +95,9 @@ class PythonPredictor:
 
         data = self.process_payload(payload)
 
-        if pd.isnull(data["Image Name"])[0] and pd.isnull(data["Name"]):
+        print(data)
+
+        if pd.isnull(data["Image Name"])[0] and pd.isnull(data["Name"])[0]:
             # lazy hack
             return { 
                 "message": "Enter a valid image URL" 
@@ -155,12 +157,12 @@ class PythonPredictor:
 
     def process_payload(self, payload):
         item_name = image_url = image_name = None
-        if 'item_name' in payload and payload['item_name'] != "":
-            item_name = payload['item_name'].lower()
+        if 'title' in payload and payload['title'] != "":
+            item_name = payload['title'].lower()
 
-        if 'image_url' in payload and self.validate_url(payload['image_url']):
+        if 'images' in payload and len(payload['images']) > 0 and self.validate_url(payload['images'][0]):
             # validate url
-            image_url = payload['image_url']
+            image_url = payload['images'][0]
             f_parts = image_url.split(".")
             file_extension = f_parts[-1]
 
@@ -202,7 +204,7 @@ if __name__ == '__main__':
 
     payload = {
         "item_name": "chicken",
-        "image_url": "https://e22d0640933e3c7f8c86-34aee0c49088be50e3ac6555f6c963fb.ssl.cf2.rackcdn.com/0052000043190_CL_default_default_thumb.jpeg"
+        "image_url": "www.bad.com/broken.jpg"
     }
 
     p = PythonPredictor(config)
