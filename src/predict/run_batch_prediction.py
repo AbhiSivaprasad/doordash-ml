@@ -33,7 +33,7 @@ def run_batch_prediction(args: BatchPredictArgs):
 
     # get raw test data
     test_data = pd.read_csv(args.test_path)
-    test_data["Name"] = test_data["Name"].str.lower()
+    test_data["Name"] = test_data["item_name"].str.lower()
 
     # read taxonomy
     wandb_api.artifact(args.taxonomy).download(args.save_dir)
@@ -93,6 +93,7 @@ def run_batch_prediction(args: BatchPredictArgs):
 
     # aggregate and write results
     results = pd.concat([test_data.data, df_preds], axis=1)
+    del results['Name']
 
     results.to_csv(args.write_path, index=False)
 

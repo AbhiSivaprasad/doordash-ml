@@ -5,6 +5,22 @@ from src.preprocess.image_utils import download_images_from_urls
 import os
 from pathlib import Path
 import numpy as np
+from tap import Tap
+
+
+class PredictionProcessArgs(Tap):
+    raw_dir: str
+    """path to file"""
+    processed_dir: str
+    """write processed files to dir"""
+    image_dir: str = "local/images/new"
+    """Dir to download images to"""
+    write_path: str = "processed.csv"
+    """Output file path"""
+    item_name_key: str = "item_name"
+    """Name of CSV key with item name"""
+    image_url_key = None
+    """Name of CSV key with image url"""
 
 
 def hashname(filename: str):
@@ -19,54 +35,53 @@ def hashname(filename: str):
     return f"{hash_string(stripped_filename)}.{extension}"
 
 
-def preprocess(filename: str, image_dir: str, write_path: str, item_name_key: str, image_url_key: str):
-    df = pd.read_csv(filename, encoding="Windows-1252")
+def preprocess(args: PredictionProcessArgs):
+    Path(args.processed_dir).mkdir(parents=True, exist_ok=True)
+    for raw_name in os.listdir(args.raw_dir):
+        raw_path = os.path.join(args.raw_dir, raw_name)
+        df = pd.read_csv(raw_path)
+        df["Name"] = df[args.item_name_key]
+        df.to_csv(os.path.join(args.processed_dir, raw_name), index=False)
+
+    # df = pd.read_csv(args.filepath, encoding="Windows-1252")
+    # df = pd.read_csv(args.filepath)
 
     # remap key names
-    renaming = {}
+    #renaming = {}
 
     # rename important columns
-    if item_name_key is not None:
-        renaming[item_name_key] = "Name" 
-    if image_url_key is not None:
-        renaming[image_url_key] = "Image URL" 
-    df = df.rename(columns=renaming)
+    #if args.image_url_key is not None:
+    #    renaming[args.image_url_key] = "Image URL" 
 
-    if "Image URL" in df:
-        # compute image file names as a hash of urls
-        df["Image Name"] = df["Image URL"].apply(
-            lambda x: hashname(x) if not pd.isnull(x) else np.nan)
+    #df = df.rename(columns=renaming)
 
-        # validate image URLs
-        valid_urls_mask = df["Image URL"].apply(lambda x: bool(validators.url(str(x))))
+   #  if "Image URL" in df:
+   #      # compute image file names as a hash of urls
+   #      df["Image Name"] = df["Image URL"].apply(
+   #          lambda x: hashname(x) if not pd.isnull(x) else np.nan)
 
-        # make image dir if it doesn't exist
-        Path(image_dir).mkdir(exist_ok=True, parents=True)
+   #      # validate image URLs
+   #      valid_urls_mask = df["Image URL"].apply(lambda x: bool(validators.url(str(x))))
 
-        # skip already downloaded images if any
-        current_images = [f for root, dirs, files in os.walk(image_dir) for f in files]
-        downloaded_mask = df["Image Name"].isin(set(current_images))
+   #      # make image dir if it doesn't exist
+   #      Path(args.image_dir).mkdir(exist_ok=True, parents=True)
 
-        # download images
-        print("Downloading images...")
-        bad_urls = download_images_from_urls(list(df.loc[valid_urls_mask & ~downloaded_mask]["Image URL"]),
-                                             image_dir,
-                                             list(df.loc[valid_urls_mask & ~downloaded_mask]["Image Name"]))
+   #      # skip already downloaded images if any
+   #      current_images = [f for root, dirs, files in os.walk(image_dir) for f in files]
+   #      downloaded_mask = df["Image Name"].isin(set(current_images))
 
-        # remove bad df image urls
-        bad_urls_mask = df["Image URL"].isin(set(bad_urls))
-        df.loc[bad_urls_mask, "Image URL"] = np.nan
-        df.loc[bad_urls_mask, "Image Name"] = np.nan
+   #      # download images
+   #      print("Downloading images...")
+   #      bad_urls = download_images_from_urls(list(df.loc[valid_urls_mask & ~downloaded_mask]["Image URL"]),
+   #                                           image_dir,
+   #                                           list(df.loc[valid_urls_mask & ~downloaded_mask]["Image Name"]))
 
-    # write processed predictions
-    df.to_csv(write_path, index=False)
+   #      # remove bad df image urls
+   #      bad_urls_mask = df["Image URL"].isin(set(bad_urls))
+   #      df.loc[bad_urls_mask, "Image URL"] = np.nan
+   #      df.loc[bad_urls_mask, "Image Name"] = np.nan
 
 
-if __name__ == "__main__":
-    filename = "raw/Gristedes-Dagastino.csv"
-    image_dir = "local/images/new/"
-    write_path = "processed/Gristedes-Dagastino.csv"
-    item_name_key = "item_name"
-    image_url_key = None
 
-    preprocess(filename, image_dir, write_path, item_name_key, image_url_key)
+if __name__ == '__main__':
+    preprocess(args=PredictionProcessArgs().parse_args())
